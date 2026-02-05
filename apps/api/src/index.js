@@ -1,5 +1,6 @@
 import express from 'express';
 import pino from 'pino';
+import morgan from 'morgan';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -18,32 +19,16 @@ const logger = pino({
   level: process.env.LOG_LEVEL || 'info'
 });
 
-// Middleware de logging para todas las peticiones HTTP
-app.use((req, res, next) => {
-  const start = Date.now();
+// Morgan para logging de peticiones HTTP
+// Formato 'dev' en desarrollo, 'combined' en producción
+if (process.env.NODE_ENV === 'production') {
+  app.use(morgan('combined'));
+} else {
+  app.use(morgan('dev'));
+}
 
-  res.on('finish', () => {
-    const duration = Date.now() - start;
-    logger.info({
-      method: req.method,
-      url: req.url,
-      status: res.statusCode,
-      duration: `${duration}ms`,
-      ip: req.ip || req.socket.remoteAddress
-    }, `${req.method} ${req.url} ${res.statusCode} - ${duration}ms`);
-  });
-
-  next();
-});
-
-// Middleware para logging del body en peticiones POST/PUT
+// Middleware para parsing de JSON
 app.use(express.json());
-app.use((req, res, next) => {
-  if (['POST', 'PUT', 'PATCH'].includes(req.method) && req.body) {
-    logger.debug({ body: req.body }, `Request body: ${req.method} ${req.url}`);
-  }
-  next();
-});
 
 // Rutas
 app.get('/', (req, res) => {
