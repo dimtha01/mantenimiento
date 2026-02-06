@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "env-cmd -f .env turbo dev",
+   "dev": "env-cmd -f .env --silent turbo dev",
+   "dev:api":" env-cmd -f .env --silent turbo dev --filter=api",
     "build": "turbo run build",
     "lint": "turbo run lint"
   },

@@ -13,6 +13,6 @@
       "outputs": []
     }
   },
-  "globalDependencies": [".env"],
+  "globalDependencies": [".env?"],
   "globalEnv": ["*"]
 }
