@@ -52,7 +52,13 @@ app.get('/api/health', (req, res) => {
     environment: process.env.NODE_ENV || 'development'
   });
 });
-
+app.get('/api', (req, res) => {
+  logger.debug('Version check solicitado');
+  res.json({
+    version: '1.0.0',
+    buildDate: '2024-06-01T00:00:00Z'
+  });
+});
 // Manejo de rutas no encontradas
 app.use((req, res) => {
   logger.warn({ method: req.method, url: req.url }, 'Ruta no encontrada');
