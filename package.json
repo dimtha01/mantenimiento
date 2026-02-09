@@ -11,7 +11,8 @@
     
     "db:generate": "turbo run generate",
     "db:migrate": "env-cmd -f .env turbo exec prisma migrate dev --filter=@repo/database",
-    "db:studio": "env-cmd -f .env pnpm --filter @repo/database exec prisma studio"
+    "db:studio": "env-cmd -f .env pnpm --filter @repo/database exec prisma studio",
+    "db:push": "env-cmd -f .env pnpm --filter @repo/database exec prisma db push"
   },
   "keywords": [],
   "author": "",

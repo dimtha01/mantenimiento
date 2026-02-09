@@ -1,0 +1,7 @@
+model Maquinaria {
+  id             Int      @id @default(autoincrement())
+  nombre         String
+  serial         String   @unique
+  estado         String   @default("OPERATIVO")
+  ultimaRevision DateTime @default(now())
+}
