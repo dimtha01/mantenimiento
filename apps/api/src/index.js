@@ -3,14 +3,23 @@ import pino from 'pino';
 import morgan from 'morgan';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { PrismaClient } from '@prisma/client';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+import { PrismaPg } from '@prisma/adapter-pg';
+import pg from 'pg';
+
+const connectionString = `${process.env.DATABASE_URL}`;
+const pool = new pg.Pool({ connectionString });
+const adapter = new PrismaPg(pool);
+const prisma = new PrismaClient({ adapter });
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(express.static(path.join(__dirname,'..', '..',"client","dist")));
+app.use(express.static(path.join(__dirname, '..', '..', "client", "dist")));
 
 // Configurar logger con formato legible para desarrollo
 const logger = pino({
@@ -123,3 +132,5 @@ process.on('uncaughtException', (err) => {
 process.on('unhandledRejection', (reason, promise) => {
   logger.error({ reason, promise }, '💥 Promesa rechazada no manejada');
 });
+
+export { prisma };

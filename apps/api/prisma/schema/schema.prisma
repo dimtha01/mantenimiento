@@ -1,11 +1,21 @@
-// packages/database/prisma/schema/main.prisma
-
 generator client {
-  provider        = "prisma-client-js"
-  previewFeatures = ["prismaSchemaFolder"]
-  output          = "../generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
+}
+
+model Maquinaria {
+  id             Int      @id @default(autoincrement())
+  nombre         String
+  serial         String   @unique
+  estado         String   @default("OPERATIVO")
+  ultimaRevision DateTime @default(now())
+}
+
+model Usuario {
+  id    Int     @id @default(autoincrement())
+  email String  @unique
+  name  String?
 }

@@ -4,15 +4,15 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-   "dev": "env-cmd -f .env --silent turbo dev",
-   "dev:api":" env-cmd -f .env --silent turbo dev --filter=api",
+    "dev": "env-cmd -f .env --silent turbo dev",
+    "dev:api": " env-cmd -f .env --silent turbo dev --filter=api",
     "build": "turbo run build",
     "lint": "turbo run lint",
-    
-    "db:generate": "turbo run generate",
-    "db:migrate": "env-cmd -f .env turbo exec prisma migrate dev --filter=@repo/database",
-    "db:studio": "env-cmd -f .env pnpm --filter @repo/database exec prisma studio",
-    "db:push": "env-cmd -f .env pnpm --filter @repo/database exec prisma db push"
+    "db:migrate": "env-cmd -f .env pnpm --filter api exec prisma migrate dev --schema=prisma/schema/schema.prisma",
+    "db:studio": "env-cmd -f .env pnpm --filter api exec prisma studio --schema=prisma/schema/schema.prisma",
+    "db:push": "env-cmd -f .env pnpm --filter api exec prisma db push --schema=prisma/schema/schema.prisma",
+    "db:pull": "env-cmd -f .env pnpm --filter api exec prisma db pull --schema=prisma/schema/schema.prisma",
+    "db:generate": "pnpm --filter api exec prisma generate --schema=prisma/schema/schema.prisma"
   },
   "keywords": [],
   "author": "",
