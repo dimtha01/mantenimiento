@@ -1,17 +1,14 @@
-enum ImagenEntityType {
-  EQUIPO
-  USUARIO
-}
-
 model Imagen {
-  id         Int              @id @default(autoincrement())
-  url        String
-  entityType ImagenEntityType @map("entity_type")
-  entityId   Int              @map("entity_id")
+  id        Int      @id @default(autoincrement())
+  url       String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  createdAt  DateTime         @default(now())
-  updatedAt  DateTime         @updatedAt
+  equipoId  Int?     @map("equipo_id")
+  equipo    Equipo?  @relation(fields: [equipoId], references: [id])
 
-  @@index([entityType, entityId])
+  usuarioId Int?     @map("usuario_id")
+  usuario   Usuario? @relation(fields: [usuarioId], references: [id])
+
   @@map("imagenes")
 }

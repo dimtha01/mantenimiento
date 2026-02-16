@@ -1,5 +1,5 @@
 model Marca {
-  id     Int     @id @default(autoincrement())
+  id     Int    @id @default(autoincrement())
   nombre String
 
   equipos Equipo[]
