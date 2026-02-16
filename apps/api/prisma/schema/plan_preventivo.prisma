@@ -1,0 +1,11 @@
+model PlanPreventivo {
+  id              Int    @id @default(autoincrement())
+  equipoId         Int    @map("equipo_id")
+  descripcionTarea String @map("descripcion_tarea")
+  frecuenciaValor  Int    @map("frecuencia_valor")
+
+  equipo           Equipo @relation(fields: [equipoId], references: [id])
+
+  @@index([equipoId])
+  @@map("plan_preventivo")
+}

@@ -1,0 +1,12 @@
+model CertificacionHistorial {
+  id            Int      @id @default(autoincrement())
+  equipoId      Int      @map("equipo_id")
+  fechaEmision  DateTime @map("fecha_emision") @db.Date
+  duracionMeses Int      @map("duracion_meses")
+  vencimiento   DateTime @map("vencimiento") @db.Date
+  
+  equipo        Equipo   @relation(fields: [equipoId], references: [id])
+
+  @@index([equipoId])
+  @@map("certificaciones_historial")
+}

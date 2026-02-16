@@ -1,0 +1,32 @@
+model Equipo {
+  id              Int     @id @default(autoincrement())
+  codigo          String
+  modelo          String
+  serial          String
+  factura         Boolean @default(false)
+
+  tipoId          Int     @map("tipo_id")
+  marcaId         Int     @map("marca_id")
+  unidadNegocioId Int     @map("unidad_negocio_id")
+  propietarioId   Int     @map("propietario_id")
+  parametroId     Int     @map("parametro_id")
+
+  tipo            TipoEquipo        @relation(fields: [tipoId], references: [id])
+  marca           Marca             @relation(fields: [marcaId], references: [id])
+  unidadNegocio   UbicacionEquipo     @relation(fields: [unidadNegocioId], references: [id])
+  propietario     Propietario       @relation(fields: [propietarioId], references: [id])
+  parametro       ParametroControl  @relation(fields: [parametroId], references: [id])
+
+  certificaciones CertificacionHistorial[]
+  planes          PlanPreventivo[]
+  mantenimientos  RegistroMantenimiento[]
+
+  imagenes        ImagenEntityType[]
+
+  @@index([tipoId])
+  @@index([marcaId])
+  @@index([unidadNegocioId])
+  @@index([propietarioId])
+  @@index([parametroId])
+  @@map("equipos")
+}

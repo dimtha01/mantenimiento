@@ -1,0 +1,17 @@
+model RegistroMantenimiento {
+  id            Int      @id @default(autoincrement())
+  equipoId      Int      @map("equipo_id")
+  fechaServicio DateTime @map("fecha_servicio") @db.Date
+  lecturaActual Int      @map("lectura_actual")
+  observaciones String?  @db.Text
+  costoTotal    Decimal? @map("costo_total") @db.Decimal(12, 2)
+
+  tipoId        Int      @map("tipo_id")
+  tipo          TipoMantenimiento @relation(fields: [tipoId], references: [id])
+
+  equipo        Equipo   @relation(fields: [equipoId], references: [id])
+
+  @@index([equipoId])
+  @@index([tipoId])
+  @@map("registro_mantenimiento")
+}

@@ -1,0 +1,17 @@
+enum ImagenEntityType {
+  EQUIPO
+  USUARIO
+}
+
+model Imagen {
+  id         Int              @id @default(autoincrement())
+  url        String
+  entityType ImagenEntityType @map("entity_type")
+  entityId   Int              @map("entity_id")
+
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  @@index([entityType, entityId])
+  @@map("imagenes")
+}

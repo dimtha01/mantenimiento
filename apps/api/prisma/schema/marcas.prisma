@@ -1,0 +1,8 @@
+model Marca {
+  id     Int     @id @default(autoincrement())
+  nombre String
+
+  equipos Equipo[]
+
+  @@map("marcas")
+}

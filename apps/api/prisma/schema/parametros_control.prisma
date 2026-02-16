@@ -1,0 +1,8 @@
+model ParametroControl {
+  id     Int    @id @default(autoincrement())
+  unidad String
+
+  equipos Equipo[]
+
+  @@map("parametros_control")
+}

@@ -1,0 +1,8 @@
+model Propietario {
+  id     Int    @id @default(autoincrement())
+  nombre String
+
+  equipos Equipo[]
+
+  @@map("propietarios")
+}

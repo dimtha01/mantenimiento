@@ -1,6 +1,16 @@
 model Usuario {
-  id       Int     @id @default(autoincrement())
-  email    String  @unique
-  password String
-  name     String?
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  nombre    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  rolId     Int      @map("rol_id")
+  rol       Rol      @relation(fields: [rolId], references: [id])
+
+  imagenes  ImagenEntityType[]
+
+  @@index([rolId])
+  @@map("usuarios")
 }
