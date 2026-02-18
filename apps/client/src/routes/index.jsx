@@ -4,9 +4,10 @@ import { ErrorPage } from "../pages/ErrorPage";
 import { HomePage } from "../pages/HomePage";
 import { LoginPage } from "../pages/LoginPage";
 import { ProtectedRoute } from "../components/ProtectedRoute";
-import { GestionUsuario } from "../pages/GestionUsuario";
+import { GestionUsuarioPage } from "../pages/GestionUsuarioPage";
 // import UserDashboard from "../pages/app/Dashboard";
 import {NoAutorizado} from "../components/NoAutorizado";
+import { DashboardPage } from "../pages/DashboardPage";
 
 export const router = createBrowserRouter([
   {
@@ -30,11 +31,11 @@ export const router = createBrowserRouter([
         children: [
           {
             path: "/admin",
-            element: <GestionUsuario />,
+            element: <DashboardPage />,
           },
           {
             path: "/admin/usuarios",
-            element: <div>Gestión de usuarios</div>,
+            element: <GestionUsuarioPage />,
           },
         ],
       },
