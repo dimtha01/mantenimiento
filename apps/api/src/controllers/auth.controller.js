@@ -46,17 +46,34 @@ export const login = async (req, res) => {
       return res.status(400).json({ message: 'email y password son requeridos' });
     }
 
-    const user = await prisma.usuario.findUnique({ where: { email } });
+    const user = await prisma.usuario.findUnique({ 
+      where: { email },
+      include: { rol: true } // ← trae la relación
+    });
+    
     if (!user) return res.status(401).json({ message: 'Credenciales inválidas' });
 
     const isValid = await bcrypt.compare(password, user.password);
     if (!isValid) return res.status(401).json({ message: 'Credenciales inválidas' });
 
-    const token = jwt.sign({ sub: user.id, email: user.email }, JWT_SECRET, { expiresIn: '1h' });
+    const token = jwt.sign(
+      { 
+        sub: user.id, 
+        email: user.email, 
+        role: user.rol.nombre // ← incluye rol en el JWT
+      }, 
+      JWT_SECRET, 
+      { expiresIn: '1h' }
+    );
 
     return res.status(200).json({
       token,
-      user: { id: user.id, email: user.email, name: user.nombre },
+      user: { 
+        id: user.id, 
+        email: user.email, 
+        nombre: user.nombre,
+        rol: user.rol.nombre // ← devuelve "ADMIN" / "USER"
+      },
     });
   } catch (err) {
     console.error(err);
