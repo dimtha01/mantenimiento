@@ -35,7 +35,7 @@ export const LoginPage = () => {
 
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
-      
+
       if (data.user.rol === 'ADMIN') {
         navigate('/admin', { replace: true });
       } else {
