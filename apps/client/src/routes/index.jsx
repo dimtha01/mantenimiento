@@ -4,7 +4,7 @@ import { ErrorPage } from "../pages/ErrorPage";
 import { HomePage } from "../pages/HomePage";
 import { LoginPage } from "../pages/LoginPage";
 import { ProtectedRoute } from "../components/ProtectedRoute";
-// import AdminDashboard from "../pages/admin/Dashboard";
+import { GestionUsuario } from "../pages/GestionUsuario";
 // import UserDashboard from "../pages/app/Dashboard";
 import {NoAutorizado} from "../components/NoAutorizado";
 
@@ -30,7 +30,7 @@ export const router = createBrowserRouter([
         children: [
           {
             path: "/admin",
-            element: <div>AdminDashboard</div>,
+            element: <GestionUsuario />,
           },
           {
             path: "/admin/usuarios",
