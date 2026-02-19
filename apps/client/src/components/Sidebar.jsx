@@ -65,9 +65,9 @@ export const Sidebar = () => {
   ];
 
   const handleLogout = () => {
-    console.log('Cerrando sesión...');
-    // localStorage.removeItem('token');
-    // navigate('/login');
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    navigate('/', { replace: true });
   };
 
   return (
@@ -90,10 +90,9 @@ export const Sidebar = () => {
             }}
             className={`
               w-12 h-12 flex items-center justify-center rounded-xl transition-all duration-200
-              ${
-                activeItem === item.path
-                  ? 'bg-slate-900 text-white shadow-lg scale-105'
-                  : 'text-slate-400 hover:bg-slate-100 hover:text-slate-700'
+              ${activeItem === item.path
+                ? 'bg-slate-900 text-white shadow-lg scale-105'
+                : 'text-slate-400 hover:bg-slate-100 hover:text-slate-700'
               }
             `}
             title={item.label}
