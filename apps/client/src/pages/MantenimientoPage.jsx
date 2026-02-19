@@ -1,331 +1,295 @@
-// MantenimientoPage.jsx
-import { useState } from 'react';
+// MantenimientoPage.jsx — integración completa con API real
+import { useState, useEffect, useCallback } from 'react';
 import { Sidebar } from '../components/Sidebar';
 import { Header } from '../components/Header';
 import { OTDrawer } from '../components/OTDrawer';
-// ← Fuente única: catálogo + historial + OTs activas
-import {
-  EQUIPOS_CATALOG,
-  PLANES_INICIALES,
-  HISTORIAL_OTS,
-  OTS_ACTIVAS,
-} from '../store/equiposStore';
 
-// ─── calcularCostos: derivado de historialOTs + otActiva ──────
-const calcularCostos = ({ historialOTs, otActiva }) => {
-  const todas = [...(otActiva ? [otActiva] : []), ...historialOTs];
-  const totalEstimado = todas.reduce((s, o) => s + (o.costoEstimado ?? 0), 0);
-  const totalReal     = todas.filter((o) => o.costoReal != null).reduce((s, o) => s + o.costoReal, 0);
-  const variacion     = totalReal - totalEstimado;
-
-  const porTipo = ['Preventivo', 'Correctivo', 'Predictivo'].map((tipo) => {
-    const del = todas.filter((o) => o.tipo === tipo);
-    return {
-      tipo,
-      est:  del.reduce((s, o) => s + (o.costoEstimado ?? 0), 0),
-      real: del.filter((o) => o.costoReal != null).reduce((s, o) => s + o.costoReal, 0),
-      registros: del
-        .filter((o) => o.costoReal != null)
-        .map((o) => ({ id: o.id, descripcion: o.descripcion, fecha: o.fecha, costoReal: o.costoReal })),
-    };
-  });
-
-  return { totalEstimado, totalReal, variacion, porTipo };
+/* ─── Helpers de badge ─────────────────────────────────────────── */
+const TIPO_CFG = {
+  PREVENTIVO: { pill: 'bg-blue-100 text-blue-700', dot: 'bg-blue-500', label: 'Preventivo' },
+  CORRECTIVO: { pill: 'bg-amber-100 text-amber-700', dot: 'bg-amber-500', label: 'Correctivo' },
+  PREDICTIVO: { pill: 'bg-cyan-100 text-cyan-700', dot: 'bg-cyan-500', label: 'Predictivo' },
 };
-
-// ─── Notificaciones globales ──────────────────────────────────
-const NOTIFICACIONES_MANT = [
-  { id: 'N-001', tipo: 'umbral',      leida: false, tiempo: 'Hace 5 min',  titulo: 'Mantenimiento próximo',   descripcion: 'EQ-001: faltan 20h para umbral de 500h.',     equipoId: 'EQ-001', color: 'amber'   },
-  { id: 'N-002', tipo: 'correctivo',  leida: false, tiempo: 'Hace 18 min', titulo: 'Falla crítica detectada', descripcion: 'EQ-002: falla en alternador. OT-0039 abierta.', equipoId: 'EQ-002', color: 'red'     },
-  { id: 'N-003', tipo: 'umbral',      leida: false, tiempo: 'Hace 1 h',    titulo: 'Mantenimiento próximo',   descripcion: 'EQ-003: faltan 50h para umbral de 1000h.',    equipoId: 'EQ-003', color: 'amber'   },
-  { id: 'N-004', tipo: 'certificado', leida: true,  tiempo: 'Hace 3 h',    titulo: 'Certificado por vencer',  descripcion: 'EQ-006: Certificado vence en 2 días.',        equipoId: 'EQ-006', color: 'orange'  },
-  { id: 'N-005', tipo: 'predictivo',  leida: true,  tiempo: 'Hace 5 h',    titulo: 'Alerta predictiva',       descripcion: 'EQ-005: vibración anómala en sensor 3.',      equipoId: 'EQ-005', color: 'cyan'    },
-  { id: 'N-006', tipo: 'ot_cerrada',  leida: true,  tiempo: 'Ayer',        titulo: 'OT completada',           descripcion: 'OT-0031 cerrada. EQ-001 operativo.',          equipoId: 'EQ-001', color: 'emerald' },
-];
-
-// ─── Helpers ──────────────────────────────────────────────────
-const getAlertaUmbral = (lecturas) => {
-  if (!lecturas?.umbralProximo) return null;
-  const r = lecturas.umbralProximo - lecturas.valor;
-  if (r <= 0)   return { level: 'vencido', label: `Vencido ${Math.abs(r)}${lecturas.unidad}`, style: 'bg-red-100 text-red-700 border-red-200'        };
-  if (r <= 50)  return { level: 'urgente', label: `${r}${lecturas.unidad} restantes`,          style: 'bg-amber-100 text-amber-700 border-amber-200'  };
-  if (r <= 100) return { level: 'proximo', label: `${r}${lecturas.unidad} restantes`,          style: 'bg-yellow-100 text-yellow-700 border-yellow-200' };
-  return null;
-};
-
-const OT_TIPO = {
-  Preventivo: { pill: 'bg-blue-100 text-blue-700',   dot: 'bg-blue-500'  },
-  Correctivo: { pill: 'bg-amber-100 text-amber-700', dot: 'bg-amber-500' },
-  Predictivo: { pill: 'bg-cyan-100 text-cyan-700',   dot: 'bg-cyan-500'  },
-};
-
-const PRIORIDAD = {
-  'Crítica': 'bg-red-100 text-red-700',
-  'Alta':    'bg-orange-100 text-orange-700',
-  'Media':   'bg-yellow-100 text-yellow-700',
-  'Baja':    'bg-slate-100 text-slate-600',
-};
+const tipoCfg = (nombre) => TIPO_CFG[nombre] ?? { pill: 'bg-slate-100 text-slate-600', dot: 'bg-slate-400', label: nombre };
+const fmtDate = (iso) => iso ? new Date(iso).toLocaleDateString('es-VE') : '—';
+const fmtMoney = (n) => n != null ? `$${Number(n).toLocaleString()}` : '—';
 
 const FILTER_TABS = [
-  { label: 'Todos',      key: 'todos'      },
-  { label: 'Preventivo', key: 'Preventivo' },
-  { label: 'Correctivo', key: 'Correctivo' },
-  { label: 'Predictivo', key: 'Predictivo' },
+  { label: 'Todos', key: 'TODOS' },
+  { label: 'Preventivo', key: 'PREVENTIVO' },
+  { label: 'Correctivo', key: 'CORRECTIVO' },
+  { label: 'Predictivo', key: 'PREDICTIVO' },
 ];
 
-// ─── CrearPlanForm ────────────────────────────────────────────
-// Recibe el equipo ya seleccionado (viene del catálogo) y lo usa
-// para pre-llenar nombre, trigger y umbral automáticamente.
-const CrearPlanForm = ({ equipo, onCreate }) => {
-  const [plan, setPlan] = useState({
-    nombre:      `Plan de Mantenimiento - ${equipo.name}`,
-    trigger:     equipo.lecturas?.umbralProximo ? 'Por Medidor' : 'Por Tiempo',
-    umbral:      equipo.lecturas?.umbralProximo ?? 500,
-    unidad:      equipo.lecturas?.unidad ?? 'h',
-    recurrencia: 'Trimestral',
-    checklist:   [],
-    repuestos:   [],
-    duracionEst: 2,
-    costoEst:    0,
+/* ─── Formulario registro de mantenimiento ──────────────────────── */
+const RegistroForm = ({ equipoId, tipos, unidad, onGuardado, onCancel }) => {
+  const [form, setForm] = useState({
+    tipoId: tipos[0]?.id ?? '',
+    fechaServicio: new Date().toISOString().split('T')[0],
+    lecturaActual: '',
+    observaciones: '',
+    costoTotal: '',
   });
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState(null);
 
-  const [nuevoItem,     setNuevoItem]     = useState('');
-  const [nuevoRepuesto, setNuevoRepuesto] = useState('');
-  const [nuevaCant,     setNuevaCant]     = useState(1);
-
-  const addItem = () => {
-    if (!nuevoItem.trim()) return;
-    setPlan((p) => ({ ...p, checklist: [...p.checklist, nuevoItem.trim()] }));
-    setNuevoItem('');
+  const handleSubmit = async () => {
+    if (!form.tipoId || !form.fechaServicio || form.lecturaActual === '') {
+      setErr('Tipo, fecha y lectura son obligatorios.');
+      return;
+    }
+    setSaving(true);
+    setErr(null);
+    try {
+      const res = await fetch('/api/mantenimientos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...form, equipoId, lecturaActual: Number(form.lecturaActual), costoTotal: form.costoTotal !== '' ? Number(form.costoTotal) : null }),
+      });
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.message);
+      onGuardado(json.data);
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const addRepuesto = () => {
-    if (!nuevoRepuesto.trim()) return;
-    setPlan((p) => ({ ...p, repuestos: [...p.repuestos, { item: nuevoRepuesto.trim(), cant: nuevaCant }] }));
-    setNuevoRepuesto('');
-    setNuevaCant(1);
-  };
+  const inputCls = 'w-full border border-slate-200 rounded-xl py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300 bg-white';
 
   return (
-    <div className="bg-white rounded-2xl border-2 border-dashed border-blue-200 overflow-hidden">
-      <div className="px-5 py-4 bg-blue-50/60 border-b border-blue-100 flex items-center gap-3">
-        <div className="w-8 h-8 rounded-xl bg-blue-100 flex items-center justify-center flex-shrink-0">
-          <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
+    <div className="border border-slate-200 rounded-2xl p-5 space-y-4 bg-slate-50">
+      <p className="text-sm font-bold text-slate-900">Nuevo Registro de Mantenimiento</p>
+      {err && <p className="text-xs text-red-500">{err}</p>}
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Tipo</label>
+          <select value={form.tipoId} onChange={e => setForm(p => ({ ...p, tipoId: e.target.value }))} className={inputCls}>
+            {tipos.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
+          </select>
         </div>
         <div>
-          <h3 className="text-sm font-bold text-slate-900">Crear Plan de Mantenimiento</h3>
-          <p className="text-[11px] text-slate-400 mt-0.5">
-            {equipo.name} · {equipo.serial} · Lectura: <span className="font-semibold text-slate-600">{equipo.lecturas.valor.toLocaleString()}{equipo.lecturas.unidad}</span>
-          </p>
+          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Fecha de Servicio</label>
+          <input type="date" value={form.fechaServicio} onChange={e => setForm(p => ({ ...p, fechaServicio: e.target.value }))} className={inputCls} />
         </div>
       </div>
 
-      <div className="px-5 py-5 space-y-5">
-        {/* Nombre */}
+      <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Nombre del Plan</label>
-          <input
-            value={plan.nombre}
-            onChange={(e) => setPlan((p) => ({ ...p, nombre: e.target.value }))}
-            className="w-full border border-slate-200 rounded-xl py-2.5 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
-          />
+          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Lectura Actual {unidad ? `(${unidad})` : ''}</label>
+          <input type="number" min="0" value={form.lecturaActual} onChange={e => setForm(p => ({ ...p, lecturaActual: e.target.value }))} placeholder="Ej: 1250" className={inputCls} />
         </div>
-
-        {/* Trigger + Umbral */}
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Trigger</label>
-            <select
-              value={plan.trigger}
-              onChange={(e) => setPlan((p) => ({ ...p, trigger: e.target.value }))}
-              className="w-full border border-slate-200 rounded-xl py-2.5 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300 bg-white"
-            >
-              <option>Por Medidor</option>
-              <option>Por Tiempo</option>
-              <option>Ambos</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-              Umbral ({plan.unidad})
-            </label>
-            <input
-              type="number"
-              value={plan.umbral}
-              onChange={(e) => setPlan((p) => ({ ...p, umbral: Number(e.target.value) }))}
-              className="w-full border border-slate-200 rounded-xl py-2.5 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
-            />
-          </div>
-        </div>
-
-        {/* Recurrencia + Duración + Costo */}
-        <div className="grid grid-cols-3 gap-4">
-          <div>
-            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Recurrencia</label>
-            <select
-              value={plan.recurrencia}
-              onChange={(e) => setPlan((p) => ({ ...p, recurrencia: e.target.value }))}
-              className="w-full border border-slate-200 rounded-xl py-2.5 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300 bg-white"
-            >
-              <option>Mensual</option>
-              <option>Trimestral</option>
-              <option>Semestral</option>
-              <option>Anual</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Duración Est. (h)</label>
-            <input type="number" min="0" step="0.5" value={plan.duracionEst}
-              onChange={(e) => setPlan((p) => ({ ...p, duracionEst: Number(e.target.value) }))}
-              className="w-full border border-slate-200 rounded-xl py-2.5 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Costo Est. ($)</label>
-            <input type="number" min="0" value={plan.costoEst}
-              onChange={(e) => setPlan((p) => ({ ...p, costoEst: Number(e.target.value) }))}
-              className="w-full border border-slate-200 rounded-xl py-2.5 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
-            />
-          </div>
-        </div>
-
-        {/* Checklist dinámico */}
         <div>
-          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Checklist de Tareas</label>
-          {plan.checklist.length > 0 && (
-            <div className="space-y-1.5 mb-2">
-              {plan.checklist.map((item, i) => (
-                <div key={i} className="flex items-center gap-2 bg-slate-50 border border-slate-100 rounded-xl px-4 py-2.5">
-                  <div className="w-4 h-4 rounded-full border-2 border-slate-300 flex-shrink-0" />
-                  <p className="text-sm text-slate-700 flex-1">{item}</p>
-                  <button onClick={() => setPlan((p) => ({ ...p, checklist: p.checklist.filter((_, j) => j !== i) }))}
-                    className="text-slate-300 hover:text-red-400 transition-colors">
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-          <div className="flex gap-2">
-            <input value={nuevoItem} onChange={(e) => setNuevoItem(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && addItem()}
-              placeholder="Ej: Drenar aceite… (Enter)"
-              className="flex-1 border border-slate-200 rounded-xl py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
-            />
-            <button onClick={addItem} className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-xl transition-colors">
-              + Agregar
-            </button>
-          </div>
+          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Costo Total ($)</label>
+          <input type="number" min="0" step="0.01" value={form.costoTotal} onChange={e => setForm(p => ({ ...p, costoTotal: e.target.value }))} placeholder="Opcional" className={inputCls} />
         </div>
+      </div>
 
-        {/* Repuestos dinámicos */}
-        <div>
-          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Repuestos</label>
-          {plan.repuestos.length > 0 && (
-            <div className="space-y-1.5 mb-2">
-              {plan.repuestos.map((r, i) => (
-                <div key={i} className="flex items-center gap-2 bg-slate-50 border border-slate-100 rounded-xl px-4 py-2.5">
-                  <p className="text-sm text-slate-700 flex-1">{r.item}</p>
-                  <span className="text-xs font-bold bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full">×{r.cant}</span>
-                  <button onClick={() => setPlan((p) => ({ ...p, repuestos: p.repuestos.filter((_, j) => j !== i) }))}
-                    className="text-slate-300 hover:text-red-400 transition-colors">
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-          <div className="flex gap-2">
-            <input value={nuevoRepuesto} onChange={(e) => setNuevoRepuesto(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && addRepuesto()}
-              placeholder="Nombre del repuesto"
-              className="flex-1 border border-slate-200 rounded-xl py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
-            />
-            <input type="number" min="1" value={nuevaCant}
-              onChange={(e) => setNuevaCant(Number(e.target.value))}
-              className="w-16 border border-slate-200 rounded-xl py-2 px-3 text-sm text-center focus:outline-none focus:ring-2 focus:ring-slate-300"
-            />
-            <button onClick={addRepuesto} className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-xl transition-colors">
-              + Agregar
-            </button>
-          </div>
-        </div>
+      <div>
+        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Observaciones</label>
+        <textarea value={form.observaciones} onChange={e => setForm(p => ({ ...p, observaciones: e.target.value }))} rows={2} className={`${inputCls} resize-none`} placeholder="Detalles del servicio..." />
+      </div>
 
-        {/* Preview costo */}
-        {plan.costoEst > 0 && (
-          <div className="bg-slate-900 rounded-2xl px-5 py-4 flex items-center justify-between">
-            <div>
-              <p className="text-xs text-slate-400 uppercase font-semibold tracking-wider">Costo estimado</p>
-              <p className="text-2xl font-black text-white">${plan.costoEst.toLocaleString()}</p>
-            </div>
-            <div className="text-right">
-              <p className="text-xs text-slate-400">Duración</p>
-              <p className="text-sm font-bold text-white">{plan.duracionEst}h</p>
-            </div>
-          </div>
-        )}
-
-        <button
-          onClick={() => onCreate({ ...plan })}
-          disabled={!plan.nombre.trim() || plan.checklist.length === 0}
-          className="w-full py-3 bg-slate-900 hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
-          Guardar Plan de Mantenimiento
+      <div className="flex gap-2 pt-1">
+        <button onClick={handleSubmit} disabled={saving} className="flex-1 py-2 bg-slate-900 text-white text-sm font-bold rounded-xl hover:bg-slate-800 transition-colors disabled:opacity-60">
+          {saving ? 'Guardando...' : 'Guardar Registro'}
+        </button>
+        <button onClick={onCancel} className="px-4 py-2 border border-slate-200 text-slate-500 text-sm font-semibold rounded-xl hover:bg-slate-50 transition-colors">
+          Cancelar
         </button>
       </div>
     </div>
   );
 };
 
-// ─── Componente principal ─────────────────────────────────────
+/* ─── Formulario de plan preventivo ────────────────────────────── */
+const PlanForm = ({ equipoId, plan, unidad, onGuardado, onCancel }) => {
+  const isEdit = !!plan;
+  const [form, setForm] = useState({
+    descripcionTarea: plan?.descripcionTarea ?? '',
+    frecuenciaValor: plan?.frecuenciaValor ?? '',
+  });
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState(null);
+
+  const handleSubmit = async () => {
+    if (!form.descripcionTarea || form.frecuenciaValor === '') {
+      setErr('Descripción y frecuencia son obligatorias.');
+      return;
+    }
+    setSaving(true);
+    setErr(null);
+    try {
+      const url = isEdit ? `/api/mantenimientos/planes/${plan.id}` : '/api/mantenimientos/planes';
+      const method = isEdit ? 'PUT' : 'POST';
+      const body = isEdit
+        ? { descripcionTarea: form.descripcionTarea, frecuenciaValor: Number(form.frecuenciaValor) }
+        : { equipoId, descripcionTarea: form.descripcionTarea, frecuenciaValor: Number(form.frecuenciaValor) };
+
+      const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.message);
+      onGuardado(json.data);
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const inputCls = 'w-full border border-slate-200 rounded-xl py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300 bg-white';
+
+  return (
+    <div className="border border-blue-200 rounded-2xl p-5 space-y-4 bg-blue-50/40">
+      <p className="text-sm font-bold text-slate-900">{isEdit ? 'Editar Plan Preventivo' : 'Nuevo Plan Preventivo'}</p>
+      {err && <p className="text-xs text-red-500">{err}</p>}
+
+      <div>
+        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Tarea / Descripción</label>
+        <textarea value={form.descripcionTarea} onChange={e => setForm(p => ({ ...p, descripcionTarea: e.target.value }))} rows={2} className={`${inputCls} resize-none`} placeholder="Ej: Cambio de aceite y filtros..." />
+      </div>
+      <div>
+        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Frecuencia {unidad ? `(cada N ${unidad})` : ''}</label>
+        <input type="number" min="1" value={form.frecuenciaValor} onChange={e => setForm(p => ({ ...p, frecuenciaValor: e.target.value }))} placeholder="Ej: 500" className={inputCls} />
+      </div>
+
+      <div className="flex gap-2 pt-1">
+        <button onClick={handleSubmit} disabled={saving} className="flex-1 py-2 bg-slate-900 text-white text-sm font-bold rounded-xl hover:bg-slate-800 transition-colors disabled:opacity-60">
+          {saving ? 'Guardando...' : isEdit ? 'Actualizar Plan' : 'Crear Plan'}
+        </button>
+        <button onClick={onCancel} className="px-4 py-2 border border-slate-200 text-slate-500 text-sm font-semibold rounded-xl hover:bg-slate-50 transition-colors">
+          Cancelar
+        </button>
+      </div>
+    </div>
+  );
+};
+
+
+/* ─── Página principal ──────────────────────────────────────────── */
 export const MantenimientoPage = () => {
-  // Planes en state local (en real: API PUT /planes/:equipoId)
-  const [planes,      setPlanes]      = useState(PLANES_INICIALES);
-  const [selectedId,  setSelectedId]  = useState(EQUIPOS_CATALOG[0].id);
-  const [activeTab,   setActiveTab]   = useState('programa');
-  const [filterTab,   setFilterTab]   = useState('todos');
-  const [otDrawer,    setOtDrawer]    = useState(null);
-  const [notifs,      setNotifs]      = useState(NOTIFICACIONES_MANT);
-  const [checklistLocal, setChecklistLocal] = useState(null);
-  const [editandoPlan,   setEditandoPlan]   = useState(false);
+  /* ── state ── */
+  const [equipos, setEquipos] = useState([]);
+  const [selectedId, setSelectedId] = useState(null);
+  const [filterTab, setFilterTab] = useState('TODOS');
+  const [activeTab, setActiveTab] = useState('registros');
+  const [search, setSearch] = useState('');
 
-  // Equipo seleccionado del catálogo (solo datos maestros + lecturas)
-  const equipoBase   = EQUIPOS_CATALOG.find((e) => e.id === selectedId) ?? EQUIPOS_CATALOG[0];
-  // OT activa completa (con checklist)
-  const otActiva     = OTS_ACTIVAS[equipoBase.id] ?? null;
-  // Historial de OTs cerradas
-  const historialOTs = HISTORIAL_OTS[equipoBase.id] ?? [];
-  // Plan del equipo (null si no tiene)
-  const plan         = planes[equipoBase.id] ?? null;
-  // Costos calculados dinámicamente
-  const costos       = calcularCostos({ historialOTs, otActiva });
+  const [registros, setRegistros] = useState([]);
+  const [planes, setPlanes] = useState([]);
+  const [tipos, setTipos] = useState([]);
+  const [kpis, setKpis] = useState({ total: 0, porTipo: [] });
 
-  const noLeidas = notifs.filter((n) => !n.leida).length;
+  const [loading, setLoading] = useState(true);
+  const [loadingDet, setLoadingDet] = useState(false);
 
-  // Equipos visibles en la lista lateral (filtrados por tipo de OT activa)
-  const equiposFiltrados = EQUIPOS_CATALOG.filter((e) => {
-    if (filterTab === 'todos') return true;
-    return (OTS_ACTIVAS[e.id]?.tipo) === filterTab;
+  const [showRegForm, setShowRegForm] = useState(false);
+  const [editPlan, setEditPlan] = useState(null);   // null | plan object
+  const [showPlanForm, setShowPlanForm] = useState(false);
+  const [otDrawer, setOtDrawer] = useState(null);
+
+  /* ── equipo seleccionado ── */
+  const equipoSel = equipos.find(e => e.id === selectedId) ?? null;
+
+  /* ── fetch lista equipos ── */
+  const fetchEquipos = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({ take: '200', withDetails: '1' });
+      if (search) params.set('q', search);
+      const res = await fetch(`/api/equipos?${params}`);
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.message);
+      const lista = json.data ?? [];
+      setEquipos(lista);
+      if (!selectedId && lista.length > 0) setSelectedId(lista[0].id);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  }, [search]);
+
+  /* ── fetch tipos de mantenimiento ── */
+  const fetchTipos = useCallback(async () => {
+    try {
+      const res = await fetch('/api/mantenimientos/tipos');
+      const json = await res.json();
+      if (json.ok) setTipos(json.data ?? []);
+    } catch (e) { console.error(e); }
+  }, []);
+
+  /* ── fetch registros y planes del equipo seleccionado ── */
+  const fetchDetalle = useCallback(async (equipoId) => {
+    if (!equipoId) return;
+    setLoadingDet(true);
+    try {
+      const [rRes, pRes, kRes] = await Promise.all([
+        fetch(`/api/mantenimientos?equipoId=${equipoId}&take=100`),
+        fetch(`/api/mantenimientos/planes?equipoId=${equipoId}`),
+        fetch('/api/mantenimientos?take=500'),
+      ]);
+      const [rJson, pJson, kJson] = await Promise.all([rRes.json(), pRes.json(), kRes.json()]);
+      if (rJson.ok) setRegistros(rJson.data ?? []);
+      if (pJson.ok) setPlanes(pJson.data ?? []);
+      if (kJson.ok) setKpis(kJson.kpis ?? { total: 0, porTipo: [] });
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingDet(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchEquipos(); fetchTipos(); }, [fetchEquipos, fetchTipos]);
+
+  useEffect(() => {
+    if (selectedId) fetchDetalle(selectedId);
+  }, [selectedId, fetchDetalle]);
+
+  /* ── filtro lateral ── */
+  const equiposFiltrados = equipos.filter(e => {
+    const matchSearch = !search || e.codigo?.toLowerCase().includes(search.toLowerCase()) || e.serial?.toLowerCase().includes(search.toLowerCase());
+    if (!matchSearch) return false;
+    if (filterTab === 'TODOS') return true;
+    return e.mantenimientos?.[0]?.tipo?.nombre === filterTab;
   });
 
-  const handleSelectEquipo = (eq) => {
-    setSelectedId(eq.id);
-    setActiveTab('programa');
-    setChecklistLocal(null);
-    setEditandoPlan(false);
+  /* ── costos calculados ── */
+  const totalCosto = registros.reduce((s, r) => s + Number(r.costoTotal ?? 0), 0);
+  const porTipoLocale = tipos.map(t => ({
+    nombre: t.nombre,
+    count: registros.filter(r => r.tipo?.nombre === t.nombre).length,
+    costo: registros.filter(r => r.tipo?.nombre === t.nombre).reduce((s, r) => s + Number(r.costoTotal ?? 0), 0),
+  }));
+
+  /* ── helpers de acción ── */
+  const handleRegistroCreado = (nuevo) => {
+    setRegistros(p => [nuevo, ...p]);
+    setShowRegForm(false);
+    // actualizar lectura en el equipo localmente
+    setEquipos(p => p.map(e => e.id === selectedId
+      ? { ...e, mantenimientos: [nuevo, ...(e.mantenimientos ?? [])] }
+      : e
+    ));
   };
 
-  const handleCrearPlan = (nuevoPlan) => {
-    setPlanes((p) => ({ ...p, [equipoBase.id]: nuevoPlan }));
-    setEditandoPlan(false);
+  const handlePlanGuardado = (plan) => {
+    setPlanes(p => {
+      const idx = p.findIndex(x => x.id === plan.id);
+      return idx >= 0 ? p.map(x => x.id === plan.id ? plan : x) : [plan, ...p];
+    });
+    setShowPlanForm(false);
+    setEditPlan(null);
   };
 
-  const getChecklist    = () => checklistLocal ?? otActiva?.checklist ?? [];
-  const toggleCheckItem = (id) =>
-    setChecklistLocal(getChecklist().map((c) => c.id === id ? { ...c, done: !c.done } : c));
+  const handleDeletePlan = async (planId) => {
+    try {
+      await fetch(`/api/mantenimientos/planes/${planId}`, { method: 'DELETE' });
+      setPlanes(p => p.filter(x => x.id !== planId));
+    } catch (e) { console.error(e); }
+  };
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#F5F6FA]">
@@ -334,48 +298,39 @@ export const MantenimientoPage = () => {
       <main className="flex-1 flex flex-col overflow-hidden">
         <Header
           title="Mantenimiento"
-          subtitle="Programa, órdenes de trabajo y costos por equipo"
-          notifications={notifs}
-          onNotifClick={(n) => {
-            const eq = EQUIPOS_CATALOG.find((e) => e.id === n.equipoId);
-            if (eq) { setSelectedId(eq.id); setActiveTab('ots'); }
-            setNotifs((p) => p.map((x) => x.id === n.id ? { ...x, leida: true } : x));
-          }}
-          onNotifMarkAll={() => setNotifs((p) => p.map((n) => ({ ...n, leida: true })))}
+          subtitle="Registros, planes preventivos y costos por equipo"
+          showSearch={false}
+          notifications={[]}
           actionButton={
             <button
-              onClick={() => setOtDrawer({
-                id: 'OT-NUEVA', tipo: 'Correctivo', descripcion: '', estado: 'Abierta',
-                fecha: new Date().toISOString().split('T')[0], tecnico: '',
-                prioridad: 'Media', costoEstimado: 0, costoReal: null, checklist: [],
-              })}
+              onClick={() => { setShowRegForm(true); setActiveTab('registros'); }}
               className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-slate-900 hover:bg-slate-800 text-white rounded-xl transition-colors shadow-sm"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-              Nueva OT
+              Nuevo Registro
             </button>
           }
         />
 
         <div className="flex-1 overflow-hidden flex">
 
-          {/* ── PANEL IZQUIERDO ────────────────────────── */}
-          <div className="w-80 shrink-0 border-r border-slate-200 bg-white flex flex-col overflow-hidden">
+          {/* ── PANEL IZQUIERDO: Lista de equipos ── */}
+          <div className="w-72 shrink-0 border-r border-slate-200 bg-white flex flex-col overflow-hidden">
             <div className="p-4 border-b border-slate-100 space-y-3">
               <div className="relative">
                 <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
-                <input type="text" placeholder="Buscar equipo..."
+                <input
+                  type="text" placeholder="Buscar equipo..."
+                  value={search} onChange={e => setSearch(e.target.value)}
                   className="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-300 bg-slate-50"
                 />
               </div>
               <div className="flex gap-1 flex-wrap">
-                {FILTER_TABS.map((f) => (
+                {FILTER_TABS.map(f => (
                   <button key={f.key} onClick={() => setFilterTab(f.key)}
-                    className={`px-2.5 py-1 rounded-full text-xs font-semibold transition-colors ${
-                      filterTab === f.key ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                    }`}
+                    className={`px-2.5 py-1 rounded-full text-xs font-semibold transition-colors ${filterTab === f.key ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
                   >
                     {f.label}
                   </button>
@@ -384,450 +339,334 @@ export const MantenimientoPage = () => {
             </div>
 
             <div className="flex-1 overflow-y-auto divide-y divide-slate-50">
-              {equiposFiltrados.map((eq) => {
-                const alerta  = getAlertaUmbral(eq.lecturas);
-                const ot      = OTS_ACTIVAS[eq.id];
+              {loading && <div className="p-6 text-center text-xs text-slate-400 animate-pulse">Cargando equipos...</div>}
+              {!loading && equiposFiltrados.map(eq => {
+                const ultimoMant = eq.mantenimientos?.[0] ?? null;
                 const isActive = selectedId === eq.id;
-                const tienePlan = !!planes[eq.id];
-
+                const cfg = tipoCfg(ultimoMant?.tipo?.nombre ?? '');
                 return (
-                  <div key={eq.id} onClick={() => handleSelectEquipo(eq)}
+                  <div key={eq.id} onClick={() => { setSelectedId(eq.id); setActiveTab('registros'); setShowRegForm(false); setShowPlanForm(false); setEditPlan(null); }}
                     className={`p-4 cursor-pointer transition-colors ${isActive ? 'bg-slate-900' : 'hover:bg-slate-50'}`}
                   >
-                    <div className="flex items-start justify-between gap-2 mb-2">
+                    <div className="flex items-start justify-between gap-2 mb-1">
                       <div className="flex-1 min-w-0">
-                        <p className={`text-sm font-semibold truncate ${isActive ? 'text-white' : 'text-slate-800'}`}>{eq.name}</p>
-                        <p className={`text-xs font-mono mt-0.5 ${isActive ? 'text-slate-300' : 'text-slate-400'}`}>{eq.serial}</p>
+                        <p className={`text-sm font-semibold truncate ${isActive ? 'text-white' : 'text-slate-800'}`}>{eq.codigo}</p>
+                        <p className={`text-xs font-mono mt-0.5 truncate ${isActive ? 'text-slate-300' : 'text-slate-400'}`}>{eq.serial} · {eq.modelo}</p>
                       </div>
-                      <div className="flex items-center gap-1 shrink-0">
-                        {!tienePlan && (
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}`}>
-                            Sin plan
-                          </span>
-                        )}
-                        {ot && (
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isActive ? 'bg-white/20 text-white' : OT_TIPO[ot.tipo]?.pill}`}>
-                            {ot.tipo}
-                          </span>
-                        )}
-                      </div>
+                      {ultimoMant && (
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${isActive ? 'bg-white/20 text-white' : cfg.pill}`}>
+                          {ultimoMant.tipo?.nombre}
+                        </span>
+                      )}
                     </div>
-                    {ot && (
-                      <p className={`text-xs truncate mb-2 ${isActive ? 'text-slate-300' : 'text-slate-500'}`}>{ot.descripcion}</p>
-                    )}
-                    <div className="flex items-center justify-between">
-                      <p className={`text-[11px] ${isActive ? 'text-slate-300' : 'text-slate-400'}`}>
-                        {eq.lecturas.valor.toLocaleString()}{eq.lecturas.unidad}
+                    <div className="flex items-center justify-between mt-1">
+                      <p className={`text-[11px] ${isActive ? 'text-slate-400' : 'text-slate-400'}`}>
+                        {ultimoMant ? fmtDate(ultimoMant.fechaServicio) : 'Sin registros'}
                       </p>
-                      {alerta && (
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${isActive ? 'bg-amber-400/20 text-amber-200 border-amber-400/30' : alerta.style}`}>
-                          {alerta.label}
+                      {eq.parametro?.unidad && ultimoMant && (
+                        <span className={`text-[10px] font-mono ${isActive ? 'text-slate-300' : 'text-slate-500'}`}>
+                          {ultimoMant.lecturaActual?.toLocaleString()} {eq.parametro.unidad}
                         </span>
                       )}
                     </div>
                   </div>
                 );
               })}
+              {!loading && equiposFiltrados.length === 0 && (
+                <div className="p-8 text-center text-xs text-slate-400">Sin equipos</div>
+              )}
             </div>
           </div>
 
-          {/* ── PANEL DERECHO ──────────────────────────── */}
+          {/* ── PANEL DERECHO ── */}
           <div className="flex-1 overflow-hidden flex flex-col">
-            <>
-              {/* Cabecera */}
-              <div className="px-8 py-5 border-b border-slate-100 bg-white shrink-0">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-slate-700 to-slate-900 flex items-center justify-center text-white font-bold text-xl shadow-sm">
-                      {equipoBase.name.charAt(0)}
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2 mb-0.5">
-                        <h2 className="text-lg font-bold text-slate-900">{equipoBase.name}</h2>
-                        {otActiva && (
-                          <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${OT_TIPO[otActiva.tipo]?.pill}`}>OT {otActiva.tipo}</span>
-                        )}
-                        {otActiva && (
-                          <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${PRIORIDAD[otActiva.prioridad]}`}>{otActiva.prioridad}</span>
-                        )}
-                        {!plan && (
-                          <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-500">Sin plan</span>
-                        )}
-                      </div>
-                      <p className="text-sm text-slate-400">{equipoBase.serial} · {equipoBase.category} · {equipoBase.location}</p>
-                    </div>
-                  </div>
-                  {otActiva && (
-                    <button onClick={() => setOtDrawer(otActiva)}
-                      className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors text-slate-700"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-                      Ver OT {otActiva.id}
-                    </button>
-                  )}
-                </div>
-
-                {/* Tabs */}
-                <div className="flex gap-1 mt-5">
-                  {[
-                    { id: 'programa', label: 'Programa' },
-                    { id: 'ots',      label: 'Órdenes de Trabajo', badge: historialOTs.length + (otActiva ? 1 : 0) },
-                    { id: 'costos',   label: 'Costos' },
-                  ].map((tab) => (
-                    <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-                      className={`flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
-                        activeTab === tab.id ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
-                      }`}
-                    >
-                      {tab.label}
-                      {tab.badge > 0 && (
-                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${activeTab === tab.id ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-600'}`}>
-                          {tab.badge}
-                        </span>
-                      )}
-                    </button>
-                  ))}
-                </div>
+            {!equipoSel ? (
+              <div className="flex-1 flex items-center justify-center text-slate-400 text-sm">
+                Selecciona un equipo
               </div>
-
-              {/* Contenido tabs */}
-              <div className="flex-1 overflow-y-auto p-8">
-
-                {/* TAB: PROGRAMA */}
-                {activeTab === 'programa' && (
-                  <div className="grid grid-cols-5 gap-6">
-                    <div className="col-span-3 space-y-6">
-
-                      {/* Checklist OT activa */}
-                      {otActiva && (
-                        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                          <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${OT_TIPO[otActiva.tipo]?.pill}`}>{otActiva.tipo}</span>
-                              <h3 className="text-sm font-bold text-slate-900">{otActiva.descripcion}</h3>
-                            </div>
-                            <span className="text-xs text-slate-400 font-mono">{otActiva.id}</span>
-                          </div>
-                          <div className="px-5 py-4">
-                            <div className="flex items-center justify-between mb-3">
-                              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Checklist</p>
-                              <p className="text-xs text-slate-400">{getChecklist().filter((c) => c.done).length}/{getChecklist().length} completadas</p>
-                            </div>
-                            <div className="w-full h-1.5 bg-slate-100 rounded-full mb-4 overflow-hidden">
-                              <div className="h-full bg-emerald-500 rounded-full transition-all duration-500"
-                                style={{ width: `${(getChecklist().filter((c) => c.done).length / (getChecklist().length || 1)) * 100}%` }} />
-                            </div>
-                            <div className="space-y-2">
-                              {getChecklist().map((item) => (
-                                <div key={item.id} onClick={() => toggleCheckItem(item.id)}
-                                  className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-colors group ${item.done ? 'bg-emerald-50' : 'bg-slate-50 hover:bg-slate-100'}`}
-                                >
-                                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${item.done ? 'bg-emerald-500 border-emerald-500' : 'border-slate-300 group-hover:border-slate-400'}`}>
-                                    {item.done && <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
-                                  </div>
-                                  <p className={`text-sm flex-1 ${item.done ? 'line-through text-slate-400' : 'text-slate-700'}`}>{item.texto}</p>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                          <div className="px-5 py-3 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between">
-                            <p className="text-xs text-slate-400">Técnico: <span className="font-semibold text-slate-600">{otActiva.tecnico}</span></p>
-                            <button onClick={() => setOtDrawer(otActiva)} className="text-xs font-semibold text-slate-600 hover:text-slate-900 flex items-center gap-1 transition-colors">
-                              Ver detalle completo <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
-                            </button>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Plan o CrearPlanForm */}
-                      {plan && !editandoPlan ? (
-                        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                          <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-                            <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                              <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                              Plan: {plan.nombre}
-                            </h3>
-                            <button onClick={() => setEditandoPlan(true)} className="text-xs font-bold text-blue-600 hover:underline">Editar plan →</button>
-                          </div>
-                          <div className="px-5 py-4 grid grid-cols-2 gap-4">
-                            {[
-                              { label: 'Trigger',       value: plan.trigger },
-                              { label: 'Umbral',        value: `${plan.umbral} ${plan.unidad}` },
-                              { label: 'Recurrencia',   value: plan.recurrencia },
-                              { label: 'Duración Est.', value: `${plan.duracionEst}h` },
-                            ].map(({ label, value }) => (
-                              <div key={label} className="bg-slate-50 rounded-xl p-3">
-                                <p className="text-[10px] text-slate-400 uppercase font-semibold tracking-wider">{label}</p>
-                                <p className="text-sm font-bold text-slate-800 mt-0.5">{value}</p>
-                              </div>
-                            ))}
-                          </div>
-                          {plan.checklist.length > 0 && (
-                            <div className="px-5 pb-4">
-                              <p className="text-[10px] text-slate-400 uppercase font-semibold tracking-wider mb-2">Checklist del Plan</p>
-                              <div className="space-y-1.5">
-                                {plan.checklist.map((item, i) => (
-                                  <div key={i} className="flex items-center gap-2 bg-slate-50 rounded-lg px-3 py-2">
-                                    <div className="w-3.5 h-3.5 rounded-full border-2 border-slate-300 flex-shrink-0" />
-                                    <p className="text-xs text-slate-700">{item}</p>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <CrearPlanForm equipo={equipoBase} onCreate={handleCrearPlan} />
-                      )}
-                    </div>
-
-                    {/* Sidebar derecho */}
-                    <div className="col-span-2 space-y-4">
-                      {/* Contador */}
-                      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-                        <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Contador del Equipo</p>
-                        <div className="flex items-end gap-2 mb-3">
-                          <span className="text-3xl font-black text-slate-900">{equipoBase.lecturas.valor.toLocaleString()}</span>
-                          <span className="text-sm text-slate-400 mb-1">{equipoBase.lecturas.unidad}</span>
-                        </div>
-                        {equipoBase.lecturas.umbralProximo && (() => {
-                          const restante = equipoBase.lecturas.umbralProximo - equipoBase.lecturas.valor;
-                          const pct = Math.min((equipoBase.lecturas.valor / equipoBase.lecturas.umbralProximo) * 100, 100);
-                          return (
-                            <>
-                              <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden mb-2">
-                                <div className={`h-full rounded-full transition-all ${pct >= 100 ? 'bg-red-500' : pct >= 90 ? 'bg-amber-500' : 'bg-emerald-500'}`} style={{ width: `${pct}%` }} />
-                              </div>
-                              <div className="flex justify-between text-xs text-slate-400">
-                                <span>0 {equipoBase.lecturas.unidad}</span>
-                                <span className={`font-semibold ${restante <= 50 ? 'text-amber-600' : 'text-slate-500'}`}>
-                                  {restante > 0 ? `Faltan ${restante}${equipoBase.lecturas.unidad}` : `Vencido ${Math.abs(restante)}${equipoBase.lecturas.unidad}`}
-                                </span>
-                                <span>{equipoBase.lecturas.umbralProximo} {equipoBase.lecturas.unidad}</span>
-                              </div>
-                            </>
-                          );
-                        })()}
+            ) : (
+              <>
+                {/* Cabecera del equipo */}
+                <div className="px-8 py-5 border-b border-slate-100 bg-white shrink-0">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-slate-700 to-slate-900 flex items-center justify-center text-white font-bold text-xl shadow-sm shrink-0">
+                        {equipoSel.codigo?.charAt(0) ?? 'E'}
                       </div>
-
-                      {plan?.repuestos?.length > 0 && (
-                        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                          <div className="px-5 py-4 border-b border-slate-100">
-                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Repuestos Requeridos</p>
-                          </div>
-                          <div className="divide-y divide-slate-50">
-                            {plan.repuestos.map((r, i) => (
-                              <div key={i} className="flex items-center justify-between px-5 py-3">
-                                <p className="text-xs text-slate-700 flex-1">{r.item}</p>
-                                <span className="text-xs font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded-full ml-2">×{r.cant}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {plan && (
-                        <div className="bg-slate-900 rounded-2xl p-5 text-white">
-                          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Costo Estimado del Plan</p>
-                          <p className="text-3xl font-black">${plan.costoEst.toLocaleString()}</p>
-                          <p className="text-xs text-slate-400 mt-1">Duración estimada: {plan.duracionEst}h</p>
-                        </div>
-                      )}
+                      <div>
+                        <h2 className="text-lg font-bold text-slate-900">{equipoSel.codigo}</h2>
+                        <p className="text-sm text-slate-400">
+                          {equipoSel.marca?.nombre ?? '—'} · {equipoSel.modelo} · {equipoSel.ubicacion?.nombre ?? '—'}
+                        </p>
+                        <p className="text-xs text-slate-400 font-mono">{equipoSel.serial}</p>
+                      </div>
                     </div>
-                  </div>
-                )}
 
-                {/* TAB: OTs */}
-                {activeTab === 'ots' && (
-                  <div className="space-y-3 max-w-2xl">
-                    {otActiva && (
-                      <div onClick={() => setOtDrawer(otActiva)}
-                        className="bg-white rounded-2xl border-2 border-slate-900 shadow-sm p-5 cursor-pointer hover:shadow-md transition-shadow"
+                    {/* KPI: último registro */}
+                    {registros[0] && (
+                      <div className="text-right">
+                        <p className="text-xs text-slate-400">Último mantenimiento</p>
+                        <p className="text-sm font-bold text-slate-700">{fmtDate(registros[0].fechaServicio)}</p>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${tipoCfg(registros[0].tipo?.nombre).pill}`}>
+                          {registros[0].tipo?.nombre}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Tabs */}
+                  <div className="flex gap-1 mt-5">
+                    {[
+                      { id: 'registros', label: 'Registros', badge: registros.length },
+                      { id: 'planes', label: 'Planes Preventivos', badge: planes.length },
+                      { id: 'costos', label: 'Costos', badge: 0 },
+                    ].map(tab => (
+                      <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+                        className={`flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${activeTab === tab.id ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'}`}
                       >
-                        <div className="flex items-start justify-between mb-3">
-                          <div className="flex items-center gap-2">
-                            <div className={`w-2.5 h-2.5 rounded-full ${OT_TIPO[otActiva.tipo]?.dot}`} />
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${OT_TIPO[otActiva.tipo]?.pill}`}>{otActiva.tipo}</span>
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">Abierta</span>
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${PRIORIDAD[otActiva.prioridad]}`}>{otActiva.prioridad}</span>
-                          </div>
-                          <span className="text-xs text-slate-400 font-mono">{otActiva.id}</span>
-                        </div>
-                        <p className="text-base font-bold text-slate-900 mb-1">{otActiva.descripcion}</p>
-                        <div className="flex items-center gap-4 text-xs text-slate-400 mt-2">
-                          <span>{otActiva.tecnico}</span>
-                          <span>{otActiva.fecha}</span>
-                          <span className="ml-auto text-slate-500 font-medium">Ver detalle →</span>
-                        </div>
-                        <div className="mt-3">
-                          <div className="flex justify-between text-xs text-slate-400 mb-1">
-                            <span>Progreso</span>
-                            <span>{getChecklist().filter((c) => c.done).length}/{getChecklist().length}</span>
-                          </div>
-                          <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                            <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${(getChecklist().filter((c) => c.done).length / (getChecklist().length || 1)) * 100}%` }} />
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {historialOTs.length > 0 && (
-                      <>
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mt-4 mb-2">Historial</p>
-                        {historialOTs.map((ot) => (
-                          <div key={ot.id} onClick={() => setOtDrawer(ot)}
-                            className="bg-white rounded-2xl border border-slate-100 p-5 cursor-pointer hover:border-slate-200 hover:shadow-sm transition-all"
-                          >
-                            <div className="flex items-start justify-between">
-                              <div className="flex items-center gap-2 mb-1.5">
-                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${OT_TIPO[ot.tipo]?.pill}`}>{ot.tipo}</span>
-                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">Cerrada</span>
-                              </div>
-                              <span className="text-xs text-slate-400 font-mono">{ot.id}</span>
-                            </div>
-                            <p className="text-sm font-semibold text-slate-700">{ot.descripcion}</p>
-                            <div className="flex items-center justify-between mt-2 text-xs text-slate-400">
-                              <span>{ot.fecha}</span>
-                              <span className="font-semibold text-slate-600">${ot.costoReal} real</span>
-                            </div>
-                          </div>
-                        ))}
-                      </>
-                    )}
-
-                    {!otActiva && historialOTs.length === 0 && (
-                      <div className="py-20 text-center">
-                        <p className="text-slate-400 text-sm">Sin órdenes de trabajo registradas</p>
-                      </div>
-                    )}
+                        {tab.label}
+                        {tab.badge > 0 && (
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${activeTab === tab.id ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-600'}`}>
+                            {tab.badge}
+                          </span>
+                        )}
+                      </button>
+                    ))}
                   </div>
-                )}
+                </div>
 
-                {/* TAB: COSTOS */}
-                {activeTab === 'costos' && (
-                  <div className="grid grid-cols-5 gap-6">
-                    <div className="col-span-5 grid grid-cols-3 gap-4">
-                      {[
-                        { label: 'Costo Estimado Total', value: `$${costos.totalEstimado.toLocaleString()}`, sub: 'Suma costoEstimado de todas OTs', color: 'text-blue-600', bg: 'bg-blue-50' },
-                        { label: 'Costo Real Total',     value: `$${costos.totalReal.toLocaleString()}`,     sub: 'Suma costoReal de OTs cerradas',  color: 'text-slate-900', bg: 'bg-slate-50' },
-                        {
-                          label: 'Variación',
-                          value: `${costos.variacion >= 0 ? '+' : ''}$${costos.variacion.toLocaleString()}`,
-                          sub:   costos.totalEstimado > 0 ? `${((costos.variacion / costos.totalEstimado) * 100).toFixed(1)}% sobre estimado` : 'Sin estimado',
-                          color: costos.variacion > 0 ? 'text-red-600' : 'text-emerald-600',
-                          bg:    costos.variacion > 0 ? 'bg-red-50'    : 'bg-emerald-50',
-                        },
-                      ].map(({ label, value, sub, color, bg }) => (
-                        <div key={label} className={`${bg} rounded-2xl p-5 border border-slate-200`}>
-                          <p className="text-xs text-slate-500 font-medium mb-2">{label}</p>
-                          <p className={`text-2xl font-black ${color}`}>{value}</p>
-                          <p className="text-xs text-slate-400 mt-1">{sub}</p>
+                {/* Contenido tabs */}
+                <div className="flex-1 overflow-y-auto p-8 space-y-4">
+                  {loadingDet && <div className="text-center text-sm text-slate-400 animate-pulse py-12">Cargando...</div>}
+
+                  {/* ══ REGISTROS ══ */}
+                  {!loadingDet && activeTab === 'registros' && (
+                    <div className="max-w-2xl space-y-4">
+
+                      {showRegForm && (
+                        <RegistroForm
+                          equipoId={selectedId}
+                          tipos={tipos}
+                          unidad={equipoSel.parametro?.unidad}
+                          onGuardado={handleRegistroCreado}
+                          onCancel={() => setShowRegForm(false)}
+                        />
+                      )}
+
+                      {registros.length === 0 && !showRegForm && (
+                        <div className="py-16 text-center">
+                          <svg className="w-10 h-10 text-slate-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                          <p className="text-sm text-slate-400 font-medium">Sin registros de mantenimiento</p>
+                          <button onClick={() => setShowRegForm(true)} className="mt-3 px-4 py-2 text-xs font-bold bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-colors">
+                            + Agregar primer registro
+                          </button>
                         </div>
-                      ))}
-                    </div>
+                      )}
 
-                    <div className="col-span-3 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                      <div className="px-5 py-4 border-b border-slate-100">
-                        <h3 className="text-sm font-bold text-slate-900">Desglose por Tipo</h3>
-                        <p className="text-[11px] text-slate-400 mt-0.5">Calculado desde historial de OTs cerradas</p>
-                      </div>
-                      <div className="p-5 space-y-5">
-                        {costos.porTipo.map((t) => {
-                          const variacion = t.real - t.est;
-                          const maxVal    = Math.max(t.est, t.real, 1);
-                          return (
-                            <div key={t.tipo}>
-                              <div className="flex items-center justify-between mb-2">
-                                <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${OT_TIPO[t.tipo]?.pill}`}>{t.tipo}</span>
-                                <div className="flex items-center gap-3 text-xs">
-                                  <span className="text-slate-400">Est. <span className="font-semibold text-slate-700">${t.est.toLocaleString()}</span></span>
-                                  <span className="text-slate-400">Real <span className="font-semibold text-slate-900">${t.real.toLocaleString()}</span></span>
-                                  <span className={`font-bold ${variacion > 0 ? 'text-red-500' : variacion < 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
-                                    {variacion !== 0 ? `${variacion > 0 ? '+' : ''}$${variacion}` : '—'}
-                                  </span>
-                                </div>
-                              </div>
-                              <div className="space-y-1">
-                                {[
-                                  { label: 'Est.', val: t.est,  cls: 'bg-slate-300' },
-                                  { label: 'Real', val: t.real, cls: OT_TIPO[t.tipo]?.dot },
-                                ].map(({ label, val, cls }) => (
-                                  <div key={label} className="flex items-center gap-2">
-                                    <span className="text-[10px] text-slate-400 w-8 text-right">{label}</span>
-                                    <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                                      <div className={`h-full rounded-full transition-all ${cls}`} style={{ width: `${(val / maxVal) * 100}%` }} />
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                              {t.registros.length > 0 && (
-                                <div className="mt-2 space-y-1 pl-10">
-                                  {t.registros.map((r) => (
-                                    <div key={r.id} className="flex items-center justify-between text-[11px] text-slate-400 bg-slate-50 rounded-lg px-3 py-1.5">
-                                      <span className="font-mono">{r.id}</span>
-                                      <span className="truncate mx-2 flex-1">{r.descripcion}</span>
-                                      <span className="shrink-0">{r.fecha}</span>
-                                      <span className="text-slate-700 font-bold ml-2 shrink-0">${r.costoReal}</span>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    <div className="col-span-2 space-y-4">
-                      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-                        <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">OT Activa</p>
-                        {otActiva ? (
-                          <div className="space-y-3">
-                            <div className="flex justify-between items-center">
-                              <span className="text-xs text-slate-500">Estimado</span>
-                              <span className="text-sm font-bold text-slate-700">${otActiva.costoEstimado.toLocaleString()}</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                              <span className="text-xs text-slate-500">Real</span>
-                              <span className="text-sm font-bold text-slate-400 italic">
-                                {otActiva.costoReal != null ? `$${otActiva.costoReal.toLocaleString()}` : 'En proceso…'}
+                      {registros.map(r => (
+                        <div key={r.id} onClick={() => setOtDrawer(r)}
+                          className="bg-white border border-slate-100 rounded-2xl p-5 cursor-pointer hover:border-slate-200 hover:shadow-sm transition-all"
+                        >
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex items-center gap-2">
+                              <div className={`w-2.5 h-2.5 rounded-full ${tipoCfg(r.tipo?.nombre).dot}`} />
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${tipoCfg(r.tipo?.nombre).pill}`}>
+                                {r.tipo?.nombre ?? '—'}
                               </span>
                             </div>
+                            <span className="text-xs text-slate-400">{fmtDate(r.fechaServicio)}</span>
                           </div>
-                        ) : <p className="text-sm text-slate-400">Sin OT activa</p>}
-                      </div>
 
-                      <div className="bg-slate-900 rounded-2xl p-5 text-white">
-                        <p className="text-xs text-slate-400 uppercase font-semibold tracking-wider mb-1">Eficiencia de Costos</p>
-                        {costos.totalEstimado > 0 ? (
-                          <>
-                            <p className={`text-3xl font-black ${costos.variacion <= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                              {(100 - (Math.abs(costos.variacion) / costos.totalEstimado) * 100).toFixed(1)}%
-                            </p>
-                            <p className="text-xs text-slate-400 mt-1">Precisión estimado vs real</p>
-                          </>
-                        ) : <p className="text-sm text-slate-400 mt-1">Sin datos suficientes</p>}
-                      </div>
+                          <div className="grid grid-cols-3 gap-3 text-xs">
+                            <div className="bg-slate-50 rounded-xl p-3">
+                              <p className="text-slate-400 mb-0.5">Lectura</p>
+                              <p className="font-bold text-slate-800 font-mono">
+                                {r.lecturaActual?.toLocaleString() ?? '—'} <span className="font-normal text-slate-400">{equipoSel.parametro?.unidad ?? ''}</span>
+                              </p>
+                            </div>
+                            <div className="bg-slate-50 rounded-xl p-3">
+                              <p className="text-slate-400 mb-0.5">Costo Total</p>
+                              <p className="font-bold text-slate-800">{fmtMoney(r.costoTotal)}</p>
+                            </div>
+                            <div className="bg-slate-50 rounded-xl p-3">
+                              <p className="text-slate-400 mb-0.5">ID Registro</p>
+                              <p className="font-bold text-slate-800 font-mono">#{r.id}</p>
+                            </div>
+                          </div>
 
-                      <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4">
-                        <p className="text-xs text-blue-700 font-semibold flex items-center gap-1.5">
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                          Costos en tiempo real
-                        </p>
-                        <p className="text-[11px] text-blue-500 mt-1">
-                          Derivados del <code className="bg-blue-100 px-1 rounded">costoReal</code> de OTs cerradas en <code className="bg-blue-100 px-1 rounded">HISTORIAL_OTS</code>.
-                        </p>
-                      </div>
+                          {r.observaciones && (
+                            <p className="text-xs text-slate-500 mt-3 italic line-clamp-2">"{r.observaciones}"</p>
+                          )}
+                        </div>
+                      ))}
+
+                      {!showRegForm && registros.length > 0 && (
+                        <button onClick={() => setShowRegForm(true)}
+                          className="w-full py-3 border-2 border-dashed border-slate-200 hover:border-slate-400 hover:bg-slate-50 text-slate-400 hover:text-slate-600 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                          Agregar Registro
+                        </button>
+                      )}
                     </div>
-                  </div>
-                )}
-              </div>
-            </>
+                  )}
+
+                  {/* ══ PLANES ══ */}
+                  {!loadingDet && activeTab === 'planes' && (
+                    <div className="max-w-2xl space-y-4">
+
+                      {(showPlanForm || editPlan) && (
+                        <PlanForm
+                          equipoId={selectedId}
+                          plan={editPlan}
+                          unidad={equipoSel.parametro?.unidad}
+                          onGuardado={handlePlanGuardado}
+                          onCancel={() => { setShowPlanForm(false); setEditPlan(null); }}
+                        />
+                      )}
+
+                      {planes.length === 0 && !showPlanForm && (
+                        <div className="py-16 text-center">
+                          <svg className="w-10 h-10 text-slate-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                          </svg>
+                          <p className="text-sm text-slate-400 font-medium">Sin planes preventivos</p>
+                          <button onClick={() => setShowPlanForm(true)} className="mt-3 px-4 py-2 text-xs font-bold bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-colors">
+                            + Crear primer plan
+                          </button>
+                        </div>
+                      )}
+
+                      {planes.map(plan => (
+                        <div key={plan.id} className="bg-white border border-slate-100 rounded-2xl p-5">
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex items-center gap-2">
+                              <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                              </svg>
+                              <span className="text-xs font-bold text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full">
+                                Cada {plan.frecuenciaValor} {equipoSel.parametro?.unidad ?? 'unidades'}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <button onClick={() => { setEditPlan(plan); setShowPlanForm(false); }}
+                                className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors text-xs font-semibold"
+                              >
+                                Editar
+                              </button>
+                              <button onClick={() => handleDeletePlan(plan.id)}
+                                className="p-1.5 rounded-lg hover:bg-red-50 text-slate-300 hover:text-red-400 transition-colors"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                              </button>
+                            </div>
+                          </div>
+                          <p className="text-sm text-slate-700">{plan.descripcionTarea}</p>
+                          <p className="text-xs text-slate-400 mt-1 font-mono">Plan #{plan.id}</p>
+                        </div>
+                      ))}
+
+                      {!showPlanForm && !editPlan && planes.length > 0 && (
+                        <button onClick={() => setShowPlanForm(true)}
+                          className="w-full py-3 border-2 border-dashed border-slate-200 hover:border-blue-400 hover:bg-blue-50 text-slate-400 hover:text-blue-600 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                          Agregar Plan
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* ══ COSTOS ══ */}
+                  {!loadingDet && activeTab === 'costos' && (
+                    <div className="max-w-3xl space-y-6">
+                      {/* KPIs */}
+                      <div className="grid grid-cols-3 gap-4">
+                        {[
+                          { label: 'Total Registros', value: registros.length, color: 'text-slate-900', bg: 'bg-slate-50' },
+                          { label: 'Costo Total', value: fmtMoney(totalCosto), color: 'text-slate-900', bg: 'bg-slate-50' },
+                          { label: 'Costo Promedio', value: registros.length ? fmtMoney(totalCosto / registros.length) : '—', color: 'text-blue-700', bg: 'bg-blue-50' },
+                        ].map(k => (
+                          <div key={k.label} className={`${k.bg} rounded-2xl p-5 border border-slate-200`}>
+                            <p className="text-xs text-slate-500 font-medium mb-2">{k.label}</p>
+                            <p className={`text-2xl font-black ${k.color}`}>{k.value}</p>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Desglose por tipo */}
+                      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                        <div className="px-5 py-4 border-b border-slate-100">
+                          <h3 className="text-sm font-bold text-slate-900">Desglose por Tipo</h3>
+                        </div>
+                        <div className="p-5 space-y-5">
+                          {porTipoLocale.map(t => {
+                            const maxVal = Math.max(...porTipoLocale.map(x => x.costo), 1);
+                            return (
+                              <div key={t.nombre}>
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${tipoCfg(t.nombre).pill}`}>{t.nombre}</span>
+                                  <div className="flex items-center gap-3 text-xs text-slate-500">
+                                    <span>{t.count} registro{t.count !== 1 ? 's' : ''}</span>
+                                    <span className="font-bold text-slate-700">{fmtMoney(t.costo)}</span>
+                                  </div>
+                                </div>
+                                <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                                  <div className={`h-full rounded-full transition-all ${tipoCfg(t.nombre).dot}`} style={{ width: `${(t.costo / maxVal) * 100}%` }} />
+                                </div>
+                              </div>
+                            );
+                          })}
+                          {registros.length === 0 && (
+                            <p className="text-sm text-slate-400 text-center py-4">Sin registros para mostrar costos</p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Historial de registros con costo */}
+                      {registros.filter(r => r.costoTotal != null).length > 0 && (
+                        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                          <div className="px-5 py-4 border-b border-slate-100">
+                            <h3 className="text-sm font-bold text-slate-900">Historial de Costos</h3>
+                          </div>
+                          <div className="divide-y divide-slate-50">
+                            {registros.filter(r => r.costoTotal != null).map(r => (
+                              <div key={r.id} className="flex items-center justify-between px-5 py-3">
+                                <div>
+                                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${tipoCfg(r.tipo?.nombre).pill}`}>{r.tipo?.nombre}</span>
+                                  <span className="text-xs text-slate-400 ml-2">{fmtDate(r.fechaServicio)}</span>
+                                </div>
+                                <span className="text-sm font-bold text-slate-800">{fmtMoney(r.costoTotal)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </div>
       </main>
 
-      {otDrawer && <OTDrawer ot={otDrawer} onClose={() => setOtDrawer(null)} />}
+      {/* OT Drawer — muestra detalles de un RegistroMantenimiento */}
+      {otDrawer && (
+        <OTDrawer
+          registro={otDrawer}
+          equipo={equipoSel}
+          tipos={tipos}
+          onClose={() => setOtDrawer(null)}
+          onUpdated={(updated) => {
+            setRegistros(p => p.map(r => r.id === updated.id ? updated : r));
+            setOtDrawer(null);
+          }}
+        />
+      )}
     </div>
   );
 };
