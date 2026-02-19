@@ -21,7 +21,9 @@ const INCLUDE_LIST = {
   marca: true,
   tipo: true,
   ubicacion: true,
+  propietario: true,
   parametro: true,
+  certificaciones: { orderBy: { vencimiento: "asc" }, take: 1 },
   mantenimientos: {
     orderBy: { fechaServicio: "desc" },
     take: 1,
@@ -103,18 +105,36 @@ export const getEquipoById = async (req, res) => {
   }
 };
 
+const toId = (v) => (v !== '' && v != null && !isNaN(Number(v)) ? Number(v) : undefined);
+
 export const createEquipo = async (req, res) => {
   try {
     const { codigo, modelo, serial, factura, marcaId, tipoId, unidadNegocioId, propietarioId, parametroId } = req.body;
 
-    const equipo = await prisma.equipo.create({
-      data: { codigo, modelo, serial, factura: factura ?? false, marcaId, tipoId, unidadNegocioId, propietarioId, parametroId },
-      include: INCLUDE_FULL,
-    });
+    const data = {
+      codigo, modelo, serial,
+      factura: factura ?? false,
+      marcaId: toId(marcaId),
+      tipoId: toId(tipoId),
+      unidadNegocioId: toId(unidadNegocioId),
+      propietarioId: toId(propietarioId),
+      parametroId: toId(parametroId),
+    };
 
+    // Campos obligatorios
+    const missing = ['codigo', 'modelo', 'serial', 'marcaId', 'tipoId', 'unidadNegocioId', 'propietarioId', 'parametroId']
+      .filter(f => data[f] == null || data[f] === '');
+    if (missing.length) {
+      return res.status(400).json({ ok: false, message: `Faltan campos requeridos: ${missing.join(', ')}` });
+    }
+
+    const equipo = await prisma.equipo.create({ data, include: INCLUDE_FULL });
     return res.status(201).json({ ok: true, data: equipo });
   } catch (err) {
     console.error(err);
+    if (err.code === 'P2003') {
+      return res.status(400).json({ ok: false, message: `Referencia inválida: verifique marca, tipo, propietario, parámetro o ubicación seleccionados.` });
+    }
     return res.status(500).json({ ok: false, message: "Error creando equipo" });
   }
 };
@@ -123,15 +143,31 @@ export const updateEquipo = async (req, res) => {
   try {
     const { codigo, modelo, serial, factura, marcaId, tipoId, unidadNegocioId, propietarioId, parametroId } = req.body;
 
+    const data = {
+      codigo, modelo, serial,
+      factura: factura ?? false,
+      marcaId: toId(marcaId),
+      tipoId: toId(tipoId),
+      unidadNegocioId: toId(unidadNegocioId),
+      propietarioId: toId(propietarioId),
+      parametroId: toId(parametroId),
+    };
+
+    // Quitar campos undefined para no sobrescribir con null
+    Object.keys(data).forEach(k => data[k] === undefined && delete data[k]);
+
     const equipo = await prisma.equipo.update({
       where: { id: Number(req.params.id) },
-      data: { codigo, modelo, serial, factura, marcaId, tipoId, unidadNegocioId, propietarioId, parametroId },
+      data,
       include: INCLUDE_FULL,
     });
 
     return res.json({ ok: true, data: equipo });
   } catch (err) {
     console.error(err);
+    if (err.code === 'P2003') {
+      return res.status(400).json({ ok: false, message: `Referencia inválida: verifique marca, tipo, propietario, parámetro o ubicación seleccionados.` });
+    }
     return res.status(500).json({ ok: false, message: "Error actualizando equipo" });
   }
 };

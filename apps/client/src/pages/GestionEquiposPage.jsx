@@ -3,7 +3,7 @@ import { Sidebar } from '../components/Sidebar';
 import { Header } from '../components/Header';
 import { EquipoDrawerModal } from '../components/EquipoDrawerModal';
 
-// ─── Helpers de badge ────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────
 const otBadgeClass = (nombre) => ({
   PREVENTIVO: 'bg-blue-100 text-blue-700',
   CORRECTIVO: 'bg-amber-100 text-amber-700',
@@ -34,13 +34,77 @@ const QUICK_LINKS = [
   { label: 'Costos', icon: <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
 ];
 
-// EQUIPO_VACIO usa los campos reales del modelo Prisma
 const EQUIPO_VACIO = {
   id: null, codigo: '', modelo: '', serial: '', factura: false,
   marcaId: '', tipoId: '', unidadNegocioId: '', propietarioId: '', parametroId: '',
-  // relaciones (para mostrar en modal)
   marca: null, tipo: null, ubicacion: null, propietario: null, parametro: null,
   mantenimientos: [], planes: [], certificaciones: [], imagenes: [],
+};
+
+const PAGE_SIZE = 10;
+
+// ─── Paginador compacto ────────────────────────────────────────
+const Pagination = ({ page, totalPages, total, onPrev, onNext, onGoto, pageSize }) => {
+  if (totalPages <= 1) return null;
+
+  const pages = [];
+  const delta = 2;
+  const left = Math.max(1, page - delta);
+  const right = Math.min(totalPages, page + delta);
+
+  if (left > 1) pages.push(1);
+  if (left > 2) pages.push('…');
+  for (let i = left; i <= right; i++) pages.push(i);
+  if (right < totalPages - 1) pages.push('…');
+  if (right < totalPages) pages.push(totalPages);
+
+  const from = (page - 1) * pageSize + 1;
+  const to = Math.min(page * pageSize, total);
+
+  return (
+    <div className="flex items-center justify-between px-6 py-3 border-t border-slate-100 bg-slate-50/60">
+      <p className="text-xs text-slate-400">
+        Mostrando <span className="font-semibold text-slate-600">{from}–{to}</span> de{' '}
+        <span className="font-semibold text-slate-600">{total}</span> equipos
+      </p>
+
+      <div className="flex items-center gap-1">
+        {/* Anterior */}
+        <button
+          onClick={onPrev} disabled={page === 1}
+          className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-white hover:text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors border border-transparent hover:border-slate-200"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+        </button>
+
+        {/* Páginas */}
+        {pages.map((p, i) =>
+          p === '…' ? (
+            <span key={`ellipsis-${i}`} className="w-7 h-7 flex items-center justify-center text-xs text-slate-400">…</span>
+          ) : (
+            <button
+              key={p}
+              onClick={() => onGoto(p)}
+              className={`w-7 h-7 flex items-center justify-center rounded-lg text-xs font-semibold transition-colors ${p === page
+                  ? 'bg-slate-900 text-white'
+                  : 'text-slate-500 hover:bg-white hover:text-slate-800 border border-transparent hover:border-slate-200'
+                }`}
+            >
+              {p}
+            </button>
+          )
+        )}
+
+        {/* Siguiente */}
+        <button
+          onClick={onNext} disabled={page === totalPages}
+          className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-white hover:text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors border border-transparent hover:border-slate-200"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+        </button>
+      </div>
+    </div>
+  );
 };
 
 // ─── Page ─────────────────────────────────────────────────────
@@ -48,17 +112,20 @@ export const GestionEquiposPage = () => {
   const [activeTab, setActiveTab] = useState('Todos');
   const [search, setSearch] = useState('');
   const [equipos, setEquipos] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
   const [kpis, setKpis] = useState({ total: 0, porTipoMantenimiento: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedEquipo, setSelectedEquipo] = useState(null);
 
-  // ── Fetch lista (con último mantenimiento incluido)
-  const fetchEquipos = useCallback(async () => {
+  // ── Fetch paginado desde el servidor ──────────────────────
+  const fetchEquipos = useCallback(async (currentPage = 1) => {
     setLoading(true);
     setError(null);
     try {
-      const params = new URLSearchParams({ take: '200', withDetails: '1' });
+      const skip = (currentPage - 1) * PAGE_SIZE;
+      const params = new URLSearchParams({ take: String(PAGE_SIZE), skip: String(skip) });
       if (search) params.set('q', search);
 
       const res = await fetch(`/api/equipos?${params}`);
@@ -66,35 +133,30 @@ export const GestionEquiposPage = () => {
       if (!json.ok) throw new Error(json.message);
 
       setEquipos(json.data ?? []);
-      // ✅ Fallback por si el controlador no devuelve kpis
+      setTotal(json.kpis?.total ?? 0);
       setKpis(json.kpis ?? { total: 0, porTipoMantenimiento: [] });
     } catch (e) {
       setError(e.message);
-      // ✅ Resetea kpis en error para no dejar undefined
       setKpis({ total: 0, porTipoMantenimiento: [] });
     } finally {
       setLoading(false);
     }
   }, [search]);
 
-
+  // Resetear a pag 1 cuando cambia búsqueda o tab
   useEffect(() => {
-    const t = setTimeout(fetchEquipos, 300);
+    setPage(1);
+  }, [search, activeTab]);
+
+  // Cargar cuando cambia la página
+  useEffect(() => {
+    const t = setTimeout(() => fetchEquipos(page), 300);
     return () => clearTimeout(t);
-  }, [fetchEquipos]);
+  }, [fetchEquipos, page]);
 
-  // ── Fetch detalle completo al abrir el modal
-  const handleSelectEquipo = async (eq) => {
-    try {
-      const res = await fetch(`/api/equipos/${eq.id}`);
-      const json = await res.json();
-      if (json.ok) setSelectedEquipo(json.data);
-    } catch {
-      setSelectedEquipo(eq); // fallback con lo que tenemos
-    }
-  };
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
-  // ── Filtro por tab (client-side)
+  // ── Filtro por tab (client-side sobre la página actual) ───
   const filtered = equipos.filter((e) => {
     const ultimoMant = e.mantenimientos?.[0];
     if (activeTab === 'Todos') return true;
@@ -103,9 +165,9 @@ export const GestionEquiposPage = () => {
     return ultimoMant?.tipo?.nombre === activeTab;
   });
 
-  // Counts dinámicos para los tabs
+  // Conteos dinámicos (sobre la página cargada, solo referenciales)
   const tabCounts = {
-    'Todos': equipos.length,
+    'Todos': total,   // total real del servidor
     'PREVENTIVO': equipos.filter(e => e.mantenimientos?.[0]?.tipo?.nombre === 'PREVENTIVO').length,
     'CORRECTIVO': equipos.filter(e => e.mantenimientos?.[0]?.tipo?.nombre === 'CORRECTIVO').length,
     'PREDICTIVO': equipos.filter(e => e.mantenimientos?.[0]?.tipo?.nombre === 'PREDICTIVO').length,
@@ -113,7 +175,6 @@ export const GestionEquiposPage = () => {
     'Con Certs': equipos.filter(e => e.certificaciones?.length > 0).length,
   };
 
-  // KPI cards reales
   const kpiCards = [
     { title: 'Total Equipos', value: kpis.total, bg: 'bg-slate-100', color: 'text-slate-600' },
     ...kpis.porTipoMantenimiento.map((k) => ({
@@ -124,27 +185,30 @@ export const GestionEquiposPage = () => {
     })),
   ];
 
-  // ── Guardar (create o update) ── o actualizar selectedEquipo sin cerrar
+  // ── Fetch detalle al abrir modal ──────────────────────────
+  const handleSelectEquipo = async (eq) => {
+    try {
+      const res = await fetch(`/api/equipos/${eq.id}`);
+      const json = await res.json();
+      if (json.ok) setSelectedEquipo(json.data);
+    } catch {
+      setSelectedEquipo(eq);
+    }
+  };
+
+  // ── Guardar (create / update) ─────────────────────────────
   const handleSaveEquipo = async (form, refreshedEquipo) => {
-    // Si el modal nos pasa un equipo ya refrescado (ej. tras agregar cert), solo actualizar state
     if (refreshedEquipo) {
       setSelectedEquipo(refreshedEquipo);
-      setEquipos((prev) =>
-        prev.map((e) => (e.id === refreshedEquipo.id ? { ...e, ...refreshedEquipo } : e))
-      );
+      setEquipos((prev) => prev.map((e) => (e.id === refreshedEquipo.id ? { ...e, ...refreshedEquipo } : e)));
       return;
     }
-
     try {
       const isNew = !form.id;
       const method = isNew ? 'POST' : 'PUT';
       const url = isNew ? '/api/equipos' : `/api/equipos/${form.id}`;
-
-      // Solo enviamos campos del modelo Prisma
       const body = {
-        codigo: form.codigo,
-        modelo: form.modelo,
-        serial: form.serial,
+        codigo: form.codigo, modelo: form.modelo, serial: form.serial,
         factura: form.factura ?? false,
         marcaId: Number(form.marcaId),
         tipoId: Number(form.tipoId),
@@ -152,19 +216,16 @@ export const GestionEquiposPage = () => {
         propietarioId: Number(form.propietarioId),
         parametroId: Number(form.parametroId),
       };
-
       const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const json = await res.json();
       if (!json.ok) throw new Error(json.message);
-
       setSelectedEquipo(null);
-      fetchEquipos();
+      fetchEquipos(page);
     } catch (e) {
       console.error('Error guardando equipo:', e.message);
-      throw e; // re-throw para que el modal muestre el error
+      throw e;
     }
   };
-
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#F5F6FA]">
@@ -180,9 +241,9 @@ export const GestionEquiposPage = () => {
 
         <div className="flex-1 overflow-hidden flex gap-0">
 
-          {/* ── IZQUIERDA: Tabla ─────────────────────────── */}
+          {/* ── IZQUIERDA: Tabla ──────────────────────────── */}
           <div className="flex-1 overflow-y-auto p-6">
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
 
               {/* Top bar */}
               <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between gap-4">
@@ -205,17 +266,18 @@ export const GestionEquiposPage = () => {
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
                     Agregar Equipo
                   </button>
-                  <button onClick={fetchEquipos} className="px-4 py-2 text-sm font-bold bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition-colors">
+                  <button onClick={() => fetchEquipos(page)} className="px-4 py-2 text-sm font-bold bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition-colors">
                     Actualizar
                   </button>
                 </div>
               </div>
 
-              {/* Status tabs */}
+              {/* Tabs de estado */}
               <div className="px-6 py-3 border-b border-slate-100 flex items-center gap-2 flex-wrap">
                 {TAB_LABELS.map((tab) => (
                   <button
-                    key={tab.label} onClick={() => setActiveTab(tab.label)}
+                    key={tab.label}
+                    onClick={() => setActiveTab(tab.label)}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${activeTab === tab.label ? tab.color : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
                       }`}
                   >
@@ -227,7 +289,7 @@ export const GestionEquiposPage = () => {
                 ))}
               </div>
 
-              {/* Table header */}
+              {/* Cabecera de tabla */}
               <div className="grid grid-cols-12 px-6 py-2.5 bg-slate-50 border-b border-slate-100 text-xs font-semibold text-slate-400 uppercase tracking-wider">
                 <div className="col-span-3">Equipo</div>
                 <div className="col-span-2">Marca / Tipo</div>
@@ -238,17 +300,19 @@ export const GestionEquiposPage = () => {
               </div>
 
               {/* Loading / Error */}
-              {loading && <div className="py-16 text-center text-sm text-slate-400 animate-pulse">Cargando equipos...</div>}
+              {loading && (
+                <div className="py-16 text-center text-sm text-slate-400 animate-pulse">Cargando equipos...</div>
+              )}
               {!loading && error && (
                 <div className="py-16 text-center">
                   <p className="text-sm text-red-400">{error}</p>
-                  <button onClick={fetchEquipos} className="mt-2 text-xs text-blue-500 underline">Reintentar</button>
+                  <button onClick={() => fetchEquipos(page)} className="mt-2 text-xs text-blue-500 underline">Reintentar</button>
                 </div>
               )}
 
-              {/* Rows */}
+              {/* Filas */}
               {!loading && !error && (
-                <div className="divide-y divide-slate-50">
+                <div className="divide-y divide-slate-50 flex-1">
                   {filtered.map((eq) => {
                     const ultimoMant = eq.mantenimientos?.[0] ?? null;
                     const certMasCercana = eq.certificaciones?.sort(
@@ -262,11 +326,11 @@ export const GestionEquiposPage = () => {
                         className="grid grid-cols-12 px-6 py-3.5 hover:bg-blue-50/40 transition-colors items-center group cursor-pointer"
                         onClick={() => handleSelectEquipo(eq)}
                       >
-                        {/* Equipo: codigo + serial */}
+                        {/* Equipo */}
                         <div className="col-span-3">
                           <p className="text-sm font-semibold text-slate-800 group-hover:text-blue-600 truncate">{eq.codigo}</p>
                           <p className="text-xs text-slate-400 font-mono">{eq.serial}</p>
-                          <p className="text-xs text-slate-400 font-mono">Modelo: {eq.modelo}</p>
+                          <p className="text-xs text-slate-400 font-mono">Mod: {eq.modelo}</p>
                         </div>
 
                         {/* Marca / Tipo */}
@@ -302,7 +366,7 @@ export const GestionEquiposPage = () => {
                           )}
                         </div>
 
-                        {/* Certificación más próxima a vencer */}
+                        {/* Certificación */}
                         <div className="col-span-2">
                           {certMasCercana ? (
                             <>
@@ -338,10 +402,21 @@ export const GestionEquiposPage = () => {
                   )}
                 </div>
               )}
+
+              {/* ── Paginación ── */}
+              <Pagination
+                page={page}
+                totalPages={totalPages}
+                total={total}
+                pageSize={PAGE_SIZE}
+                onPrev={() => setPage((p) => Math.max(1, p - 1))}
+                onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+                onGoto={(p) => setPage(p)}
+              />
             </div>
           </div>
 
-          {/* ── DERECHA: KPIs + Accesos ──────────────────── */}
+          {/* ── DERECHA: KPIs + Accesos ───────────────────── */}
           <div className="w-72 shrink-0 overflow-y-auto border-l border-slate-200 bg-white p-5 flex flex-col gap-5">
             <div>
               <h3 className="text-sm font-bold text-slate-900 mb-3">Resumen</h3>
@@ -360,6 +435,15 @@ export const GestionEquiposPage = () => {
                   </div>
                 ))}
               </div>
+            </div>
+
+            <div className="border-t border-slate-100" />
+
+            {/* Indicador de página */}
+            <div className="bg-slate-50 rounded-xl p-3 text-center">
+              <p className="text-xs text-slate-400">Página</p>
+              <p className="text-2xl font-black text-slate-800">{page}<span className="text-sm font-medium text-slate-400"> / {totalPages}</span></p>
+              <p className="text-[11px] text-slate-400 mt-0.5">{PAGE_SIZE} equipos por página</p>
             </div>
 
             <div className="border-t border-slate-100" />

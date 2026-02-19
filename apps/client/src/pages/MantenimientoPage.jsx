@@ -1,8 +1,7 @@
-// MantenimientoPage.jsx — integración completa con API real
 import { useState, useEffect, useCallback } from 'react';
 import { Sidebar } from '../components/Sidebar';
 import { Header } from '../components/Header';
-import { OTDrawer } from '../components/OTDrawer';
+import { RegistroDrawer } from '../components/RegistroDrawer';
 
 /* ─── Helpers de badge ─────────────────────────────────────────── */
 const TIPO_CFG = {
@@ -110,6 +109,7 @@ const PlanForm = ({ equipoId, plan, unidad, onGuardado, onCancel }) => {
   const [form, setForm] = useState({
     descripcionTarea: plan?.descripcionTarea ?? '',
     frecuenciaValor: plan?.frecuenciaValor ?? '',
+    costoEstimado: plan?.costoEstimado ?? '',
   });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState(null);
@@ -125,8 +125,8 @@ const PlanForm = ({ equipoId, plan, unidad, onGuardado, onCancel }) => {
       const url = isEdit ? `/api/mantenimientos/planes/${plan.id}` : '/api/mantenimientos/planes';
       const method = isEdit ? 'PUT' : 'POST';
       const body = isEdit
-        ? { descripcionTarea: form.descripcionTarea, frecuenciaValor: Number(form.frecuenciaValor) }
-        : { equipoId, descripcionTarea: form.descripcionTarea, frecuenciaValor: Number(form.frecuenciaValor) };
+        ? { descripcionTarea: form.descripcionTarea, frecuenciaValor: Number(form.frecuenciaValor), costoEstimado: form.costoEstimado !== '' ? Number(form.costoEstimado) : null }
+        : { equipoId, descripcionTarea: form.descripcionTarea, frecuenciaValor: Number(form.frecuenciaValor), costoEstimado: form.costoEstimado !== '' ? Number(form.costoEstimado) : null };
 
       const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const json = await res.json();
@@ -150,9 +150,15 @@ const PlanForm = ({ equipoId, plan, unidad, onGuardado, onCancel }) => {
         <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Tarea / Descripción</label>
         <textarea value={form.descripcionTarea} onChange={e => setForm(p => ({ ...p, descripcionTarea: e.target.value }))} rows={2} className={`${inputCls} resize-none`} placeholder="Ej: Cambio de aceite y filtros..." />
       </div>
-      <div>
-        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Frecuencia {unidad ? `(cada N ${unidad})` : ''}</label>
-        <input type="number" min="1" value={form.frecuenciaValor} onChange={e => setForm(p => ({ ...p, frecuenciaValor: e.target.value }))} placeholder="Ej: 500" className={inputCls} />
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Frecuencia {unidad ? `(cada N ${unidad})` : ''}</label>
+          <input type="number" min="1" value={form.frecuenciaValor} onChange={e => setForm(p => ({ ...p, frecuenciaValor: e.target.value }))} placeholder="Ej: 500" className={inputCls} />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Costo Estimado ($) <span className="font-normal text-slate-400 normal-case">opcional</span></label>
+          <input type="number" min="0" step="0.01" value={form.costoEstimado} onChange={e => setForm(p => ({ ...p, costoEstimado: e.target.value }))} placeholder="Presupuesto del plan" className={inputCls} />
+        </div>
       </div>
 
       <div className="flex gap-2 pt-1">
@@ -419,7 +425,7 @@ export const MantenimientoPage = () => {
                     {[
                       { id: 'registros', label: 'Registros', badge: registros.length },
                       { id: 'planes', label: 'Planes Preventivos', badge: planes.length },
-                      { id: 'costos', label: 'Costos', badge: 0 },
+                      { id: 'costos', label: 'Análisis de Costos', badge: 0 },
                     ].map(tab => (
                       <button key={tab.id} onClick={() => setActiveTab(tab.id)}
                         className={`flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${activeTab === tab.id ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'}`}
@@ -580,73 +586,197 @@ export const MantenimientoPage = () => {
                     </div>
                   )}
 
-                  {/* ══ COSTOS ══ */}
-                  {!loadingDet && activeTab === 'costos' && (
-                    <div className="max-w-3xl space-y-6">
-                      {/* KPIs */}
-                      <div className="grid grid-cols-3 gap-4">
-                        {[
-                          { label: 'Total Registros', value: registros.length, color: 'text-slate-900', bg: 'bg-slate-50' },
-                          { label: 'Costo Total', value: fmtMoney(totalCosto), color: 'text-slate-900', bg: 'bg-slate-50' },
-                          { label: 'Costo Promedio', value: registros.length ? fmtMoney(totalCosto / registros.length) : '—', color: 'text-blue-700', bg: 'bg-blue-50' },
-                        ].map(k => (
-                          <div key={k.label} className={`${k.bg} rounded-2xl p-5 border border-slate-200`}>
-                            <p className="text-xs text-slate-500 font-medium mb-2">{k.label}</p>
-                            <p className={`text-2xl font-black ${k.color}`}>{k.value}</p>
-                          </div>
-                        ))}
-                      </div>
+                  {/* ══ ANÁLISIS DE COSTOS (versus) ══ */}
+                  {!loadingDet && activeTab === 'costos' && (() => {
+                    // ── Datos calculados ──
+                    const prev = porTipoLocale.find(t => t.nombre === 'PREVENTIVO') ?? { count: 0, costo: 0 };
+                    const corr = porTipoLocale.find(t => t.nombre === 'CORRECTIVO') ?? { count: 0, costo: 0 };
+                    const pred = porTipoLocale.find(t => t.nombre === 'PREDICTIVO') ?? { count: 0, costo: 0 };
+                    const planificado = prev.costo + pred.costo;  // Prev + Pred = costo planificado
+                    const noplanificado = corr.costo;              // Correctivo = costo no planificado
+                    const maxVs = Math.max(planificado, noplanificado, 1);
 
-                      {/* Desglose por tipo */}
-                      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                        <div className="px-5 py-4 border-b border-slate-100">
-                          <h3 className="text-sm font-bold text-slate-900">Desglose por Tipo</h3>
+                    // Presupuestado vs Real desde planes
+                    const totalEstimado = planes.reduce((s, p) => s + Number(p.costoEstimado ?? 0), 0);
+                    const totalReal = totalCosto;
+                    const delta = totalReal - totalEstimado;
+                    const maxPR = Math.max(totalEstimado, totalReal, 1);
+
+                    return (
+                      <div className="max-w-3xl space-y-5">
+
+                        {/* ── KPI resumen ── */}
+                        <div className="grid grid-cols-4 gap-3">
+                          {[
+                            { label: 'Total Registros', value: registros.length, bg: 'bg-slate-50', color: 'text-slate-900' },
+                            { label: 'Costo Total Real', value: fmtMoney(totalReal), bg: 'bg-slate-50', color: 'text-slate-900' },
+                            { label: 'Costo Promedio', value: registros.length ? fmtMoney(totalReal / registros.length) : '—', bg: 'bg-blue-50', color: 'text-blue-700' },
+                            {
+                              label: delta >= 0 ? 'Sobrecosto' : 'Ahorro',
+                              value: `${delta >= 0 ? '+' : ''}${fmtMoney(Math.abs(delta))}`,
+                              bg: delta >= 0 ? 'bg-red-50' : 'bg-emerald-50',
+                              color: delta >= 0 ? 'text-red-600' : 'text-emerald-700'
+                            },
+                          ].map(k => (
+                            <div key={k.label} className={`${k.bg} rounded-2xl p-4 border border-slate-200`}>
+                              <p className="text-[11px] text-slate-500 font-medium mb-1.5">{k.label}</p>
+                              <p className={`text-xl font-black ${k.color}`}>{k.value}</p>
+                            </div>
+                          ))}
                         </div>
-                        <div className="p-5 space-y-5">
-                          {porTipoLocale.map(t => {
-                            const maxVal = Math.max(...porTipoLocale.map(x => x.costo), 1);
-                            return (
-                              <div key={t.nombre}>
-                                <div className="flex items-center justify-between mb-2">
-                                  <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${tipoCfg(t.nombre).pill}`}>{t.nombre}</span>
-                                  <div className="flex items-center gap-3 text-xs text-slate-500">
-                                    <span>{t.count} registro{t.count !== 1 ? 's' : ''}</span>
-                                    <span className="font-bold text-slate-700">{fmtMoney(t.costo)}</span>
-                                  </div>
+
+                        {/* ── VERSUS: Planificado vs No Planificado ── */}
+                        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                          <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+                            <div>
+                              <h3 className="text-sm font-bold text-slate-900">Mantenimiento Planificado vs Correctivo</h3>
+                              <p className="text-xs text-slate-400 mt-0.5">Preventivo + Predictivo (planificado) contra Correctivo (no planificado)</p>
+                            </div>
+                            {registros.length === 0 && <p className="text-xs text-slate-400">Sin datos</p>}
+                          </div>
+                          <div className="p-5 space-y-4">
+                            {/* Planificado */}
+                            <div>
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="w-2.5 h-2.5 rounded-full bg-blue-500 inline-block" />
+                                  <span className="text-xs font-semibold text-slate-700">Planificado (Prev. + Pred.)</span>
                                 </div>
-                                <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                                  <div className={`h-full rounded-full transition-all ${tipoCfg(t.nombre).dot}`} style={{ width: `${(t.costo / maxVal) * 100}%` }} />
+                                <div className="flex items-center gap-4 text-xs">
+                                  <span className="text-slate-400">{prev.count + pred.count} reg.</span>
+                                  <span className="font-black text-slate-800 text-sm">{fmtMoney(planificado)}</span>
                                 </div>
                               </div>
-                            );
-                          })}
-                          {registros.length === 0 && (
-                            <p className="text-sm text-slate-400 text-center py-4">Sin registros para mostrar costos</p>
-                          )}
-                        </div>
-                      </div>
+                              <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
+                                <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${(planificado / maxVs) * 100}%` }} />
+                              </div>
+                              <div className="flex gap-4 mt-2">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+                                  <span className="text-[10px] text-slate-500">Preventivo: {fmtMoney(prev.costo)} ({prev.count} reg.)</span>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-500" />
+                                  <span className="text-[10px] text-slate-500">Predictivo: {fmtMoney(pred.costo)} ({pred.count} reg.)</span>
+                                </div>
+                              </div>
+                            </div>
 
-                      {/* Historial de registros con costo */}
-                      {registros.filter(r => r.costoTotal != null).length > 0 && (
+                            {/* Separador VS */}
+                            <div className="flex items-center gap-3">
+                              <div className="flex-1 h-px bg-slate-100" />
+                              <span className="text-[10px] font-black text-slate-400 px-2 py-0.5 bg-slate-100 rounded-full">VS</span>
+                              <div className="flex-1 h-px bg-slate-100" />
+                            </div>
+
+                            {/* Correctivo */}
+                            <div>
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block" />
+                                  <span className="text-xs font-semibold text-slate-700">Correctivo (no planificado)</span>
+                                </div>
+                                <div className="flex items-center gap-4 text-xs">
+                                  <span className="text-slate-400">{corr.count} reg.</span>
+                                  <span className="font-black text-slate-800 text-sm">{fmtMoney(noplanificado)}</span>
+                                </div>
+                              </div>
+                              <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
+                                <div className="h-full bg-amber-500 rounded-full transition-all" style={{ width: `${(noplanificado / maxVs) * 100}%` }} />
+                              </div>
+                            </div>
+
+                            {/* Porcentaje */}
+                            {(planificado + noplanificado) > 0 && (
+                              <div className="grid grid-cols-2 gap-3 pt-2">
+                                <div className="bg-blue-50 rounded-xl p-3 text-center">
+                                  <p className="text-xs text-blue-500 font-medium">% Planificado</p>
+                                  <p className="text-lg font-black text-blue-700">
+                                    {Math.round((planificado / (planificado + noplanificado)) * 100)}%
+                                  </p>
+                                </div>
+                                <div className="bg-amber-50 rounded-xl p-3 text-center">
+                                  <p className="text-xs text-amber-500 font-medium">% Correctivo</p>
+                                  <p className="text-lg font-black text-amber-700">
+                                    {Math.round((noplanificado / (planificado + noplanificado)) * 100)}%
+                                  </p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* ── Presupuestado vs Real (desde planes) ── */}
                         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                           <div className="px-5 py-4 border-b border-slate-100">
-                            <h3 className="text-sm font-bold text-slate-900">Historial de Costos</h3>
+                            <h3 className="text-sm font-bold text-slate-900">Presupuestado vs Costo Real</h3>
+                            <p className="text-xs text-slate-400 mt-0.5">Comparación entre el costo estimado en planes y el gasto real ejecutado</p>
                           </div>
-                          <div className="divide-y divide-slate-50">
-                            {registros.filter(r => r.costoTotal != null).map(r => (
-                              <div key={r.id} className="flex items-center justify-between px-5 py-3">
-                                <div>
-                                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${tipoCfg(r.tipo?.nombre).pill}`}>{r.tipo?.nombre}</span>
-                                  <span className="text-xs text-slate-400 ml-2">{fmtDate(r.fechaServicio)}</span>
-                                </div>
-                                <span className="text-sm font-bold text-slate-800">{fmtMoney(r.costoTotal)}</span>
+                          <div className="p-5 space-y-4">
+                            {/* Presupuestado */}
+                            <div>
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-xs font-semibold text-slate-500">Costo Presupuestado (planes)</span>
+                                <span className="text-sm font-black text-slate-700">{fmtMoney(totalEstimado)}</span>
                               </div>
-                            ))}
+                              <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                                <div className="h-full bg-slate-400 rounded-full" style={{ width: `${(totalEstimado / maxPR) * 100}%` }} />
+                              </div>
+                            </div>
+                            {/* Real */}
+                            <div>
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-xs font-semibold text-slate-500">Costo Real Ejecutado</span>
+                                <span className="text-sm font-black text-slate-900">{fmtMoney(totalReal)}</span>
+                              </div>
+                              <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full ${delta > 0 ? 'bg-red-400' : 'bg-emerald-400'}`}
+                                  style={{ width: `${(totalReal / maxPR) * 100}%` }}
+                                />
+                              </div>
+                            </div>
+                            {/* Diferencia */}
+                            {totalEstimado > 0 && (
+                              <div className={`rounded-xl p-3 flex items-center justify-between ${delta > 0 ? 'bg-red-50' : 'bg-emerald-50'}`}>
+                                <span className={`text-xs font-semibold ${delta > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                                  {delta > 0 ? '⚠ Sobrecosto' : '✓ Por debajo del presupuesto'}
+                                </span>
+                                <span className={`text-sm font-black ${delta > 0 ? 'text-red-700' : 'text-emerald-700'}`}>
+                                  {delta > 0 ? '+' : ''}{fmtMoney(delta)}
+                                </span>
+                              </div>
+                            )}
+                            {totalEstimado === 0 && (
+                              <p className="text-xs text-slate-400 text-center py-2">
+                                Agrega costos estimados en los planes preventivos para activar esta comparación.
+                              </p>
+                            )}
                           </div>
                         </div>
-                      )}
-                    </div>
-                  )}
+
+                        {/* ── Historial de registros con costo ── */}
+                        {registros.filter(r => r.costoTotal != null).length > 0 && (
+                          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                            <div className="px-5 py-4 border-b border-slate-100">
+                              <h3 className="text-sm font-bold text-slate-900">Historial de Costos por Registro</h3>
+                            </div>
+                            <div className="divide-y divide-slate-50">
+                              {registros.filter(r => r.costoTotal != null).map(r => (
+                                <div key={r.id} className="flex items-center justify-between px-5 py-3 hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => setOtDrawer(r)}>
+                                  <div>
+                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${tipoCfg(r.tipo?.nombre).pill}`}>{r.tipo?.nombre}</span>
+                                    <span className="text-xs text-slate-400 ml-2">{fmtDate(r.fechaServicio)}</span>
+                                  </div>
+                                  <span className="text-sm font-bold text-slate-800">{fmtMoney(r.costoTotal)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               </>
             )}
@@ -654,9 +784,9 @@ export const MantenimientoPage = () => {
         </div>
       </main>
 
-      {/* OT Drawer — muestra detalles de un RegistroMantenimiento */}
+      {/* Drawer de detalle de registro de mantenimiento */}
       {otDrawer && (
-        <OTDrawer
+        <RegistroDrawer
           registro={otDrawer}
           equipo={equipoSel}
           tipos={tipos}

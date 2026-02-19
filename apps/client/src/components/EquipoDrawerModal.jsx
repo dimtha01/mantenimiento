@@ -47,6 +47,7 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
 
   /* form principal */
   const [form, setForm] = useState(FORM_EMPTY);
+  const [originalForm, setOriginalForm] = useState(FORM_EMPTY);
 
   /* catálogos para selects */
   const [catalogos, setCatalogos] = useState({
@@ -87,7 +88,8 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
   /* ── abrir / cerrar ────────────────────────────────── */
   useEffect(() => {
     if (equipo) {
-      setForm({
+      const initial = {
+        id: equipo.id ?? null,
         codigo: equipo.codigo ?? '',
         modelo: equipo.modelo ?? '',
         serial: equipo.serial ?? '',
@@ -97,7 +99,9 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
         unidadNegocioId: equipo.unidadNegocioId ?? equipo.ubicacion?.id ?? '',
         propietarioId: equipo.propietarioId ?? equipo.propietario?.id ?? '',
         parametroId: equipo.parametroId ?? equipo.parametro?.id ?? '',
-      });
+      };
+      setForm(initial);
+      setOriginalForm(initial);
       setActiveTab('general');
       setSaveError(null);
       setShowCertForm(false);
@@ -113,10 +117,35 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
 
   const handleChange = (field, value) => setForm((p) => ({ ...p, [field]: value }));
 
+  /* true si el form difiere del estado original (solo relevante en modo edición) */
+  const hasChanges = isNew || JSON.stringify(
+    Object.fromEntries(Object.keys(originalForm).filter(k => k !== 'id').map(k => [k, String(form[k] ?? '')]))
+  ) !== JSON.stringify(
+    Object.fromEntries(Object.keys(originalForm).filter(k => k !== 'id').map(k => [k, String(originalForm[k] ?? '')]))
+  );
+
   /* ── guardar equipo ────────────────────────────────── */
   const handleSave = async () => {
-    setSaving(true);
     setSaveError(null);
+
+    // Validación client-side
+    const required = [
+      { key: 'codigo', label: 'Código' },
+      { key: 'modelo', label: 'Modelo' },
+      { key: 'serial', label: 'Serial' },
+      { key: 'marcaId', label: 'Marca' },
+      { key: 'tipoId', label: 'Tipo' },
+      { key: 'unidadNegocioId', label: 'Ubicación' },
+      { key: 'propietarioId', label: 'Propietario' },
+      { key: 'parametroId', label: 'Parámetro' },
+    ];
+    const missing = required.filter(({ key }) => !form[key] || form[key] === '');
+    if (missing.length) {
+      setSaveError(`Completa los campos requeridos: ${missing.map(m => m.label).join(', ')}`);
+      return;
+    }
+
+    setSaving(true);
     try {
       await onSave(form);
       handleClose();
@@ -196,8 +225,9 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
             )}
             <button
               onClick={handleSave}
-              disabled={saving}
-              className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-colors disabled:opacity-60"
+              disabled={saving || !hasChanges}
+              title={!hasChanges ? 'Sin cambios pendientes' : ''}
+              className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {saving ? (
                 <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -209,7 +239,7 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                 </svg>
               )}
-              {saving ? 'Guardando...' : 'Guardar'}
+              {saving ? 'Guardando...' : hasChanges ? 'Guardar' : 'Sin cambios'}
             </button>
             <button
               onClick={handleClose}
