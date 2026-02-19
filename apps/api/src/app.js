@@ -5,6 +5,7 @@ import equiposRoutes from './routes/equipos.routes.js';
 import catalogosRoutes from './routes/catalogos.routes.js';
 import mantenimientosRoutes from './routes/mantenimientos.routes.js';
 import dashboardRoutes from './routes/dashboard.routes.js';
+import usuariosRoutes from './routes/usuarios.routes.js';
 
 const app = express();
 
@@ -16,6 +17,7 @@ app.use('/api/equipos', equiposRoutes);
 app.use('/api/catalogos', catalogosRoutes);
 app.use('/api/mantenimientos', mantenimientosRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/usuarios', usuariosRoutes);
 
 export default app;
 
