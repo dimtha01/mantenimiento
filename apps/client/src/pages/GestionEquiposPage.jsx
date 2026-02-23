@@ -20,10 +20,10 @@ const certVencimientoBadge = (vencimiento) => {
 
 const TAB_LABELS = [
   { label: 'Todos', color: 'bg-slate-800 text-white' },
-  { label: 'PREVENTIVO', color: 'bg-blue-100 text-blue-700' },
-  { label: 'CORRECTIVO', color: 'bg-amber-100 text-amber-700' },
-  { label: 'PREDICTIVO', color: 'bg-cyan-100 text-cyan-700' },
-  { label: 'Sin OTs', color: 'bg-slate-100 text-slate-500' },
+  { label: 'Mant PREVENTIVO', color: 'bg-blue-100 text-blue-700' },
+  { label: 'Mant CORRECTIVO', color: 'bg-amber-100 text-amber-700' },
+  { label: 'Mant PREDICTIVO', color: 'bg-cyan-100 text-cyan-700' },
+  { label: 'Sin Plan prevent', color: 'bg-slate-100 text-slate-500' },
   { label: 'Con Certs', color: 'bg-emerald-100 text-emerald-700' },
 ];
 
@@ -160,7 +160,7 @@ export const GestionEquiposPage = () => {
   const filtered = equipos.filter((e) => {
     const ultimoMant = e.mantenimientos?.[0];
     if (activeTab === 'Todos') return true;
-    if (activeTab === 'Sin OTs') return !ultimoMant;
+    if (activeTab === 'Sin plan prevent.') return !ultimoMant;
     if (activeTab === 'Con Certs') return e.certificaciones?.length > 0;
     return ultimoMant?.tipo?.nombre === activeTab;
   });
@@ -168,17 +168,17 @@ export const GestionEquiposPage = () => {
   // Conteos dinámicos (sobre la página cargada, solo referenciales)
   const tabCounts = {
     'Todos': total,   // total real del servidor
-    'PREVENTIVO': equipos.filter(e => e.mantenimientos?.[0]?.tipo?.nombre === 'PREVENTIVO').length,
-    'CORRECTIVO': equipos.filter(e => e.mantenimientos?.[0]?.tipo?.nombre === 'CORRECTIVO').length,
-    'PREDICTIVO': equipos.filter(e => e.mantenimientos?.[0]?.tipo?.nombre === 'PREDICTIVO').length,
-    'Sin OTs': equipos.filter(e => !e.mantenimientos?.length).length,
+    'Mant PREVENTIVO': equipos.filter(e => e.mantenimientos?.[0]?.tipo?.nombre === 'PREVENTIVO').length,
+    'Mant CORRECTIVO': equipos.filter(e => e.mantenimientos?.[0]?.tipo?.nombre === 'CORRECTIVO').length,
+    'Mant PREDICTIVO': equipos.filter(e => e.mantenimientos?.[0]?.tipo?.nombre === 'PREDICTIVO').length,
+    'Sin plan prevent`': equipos.filter(e => !e.mantenimientos?.length).length,
     'Con Certs': equipos.filter(e => e.certificaciones?.length > 0).length,
   };
 
   const kpiCards = [
     { title: 'Total Equipos', value: kpis.total, bg: 'bg-slate-100', color: 'text-slate-600' },
     ...kpis.porTipoMantenimiento.map((k) => ({
-      title: `OTs ${k.tipo}`,
+      title: `Mant ${k.tipo}`,
       value: k.count,
       bg: k.tipo === 'PREVENTIVO' ? 'bg-blue-50' : k.tipo === 'CORRECTIVO' ? 'bg-amber-50' : 'bg-cyan-50',
       color: k.tipo === 'PREVENTIVO' ? 'text-blue-600' : k.tipo === 'CORRECTIVO' ? 'text-amber-600' : 'text-cyan-600',
@@ -446,7 +446,7 @@ export const GestionEquiposPage = () => {
               <p className="text-[11px] text-slate-400 mt-0.5">{PAGE_SIZE} equipos por página</p>
             </div>
 
-            <div className="border-t border-slate-100" />
+            {/* <div className="border-t border-slate-100" />
 
             <div>
               <h3 className="text-sm font-bold text-slate-900 mb-3">Accesos Rápidos</h3>
@@ -460,7 +460,7 @@ export const GestionEquiposPage = () => {
               </div>
             </div>
 
-            <div className="border-t border-slate-100" />
+            <div className="border-t border-slate-100" /> */}
 
             <button
               onClick={() => setSelectedEquipo({ ...EQUIPO_VACIO })}
