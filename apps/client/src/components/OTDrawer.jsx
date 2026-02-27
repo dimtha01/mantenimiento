@@ -22,8 +22,12 @@ export const OTDrawer = ({ registro, equipo, tipos = [], onClose, onUpdated }) =
     fechaServicio: registro?.fechaServicio ? registro.fechaServicio.split('T')[0] : '',
     lecturaActual: registro?.lecturaActual ?? '',
     observaciones: registro?.observaciones ?? '',
-    costoTotal: registro?.costoTotal ?? '',
+    costoManoObra: registro?.costoManoObra ?? '',
+    costoServicios: registro?.costoServicios ?? '',
+    costoRepuestos: registro?.costoRepuestos ?? '',
   });
+
+  const calculatedTotal = (Number(form.costoManoObra) || 0) + (Number(form.costoServicios) || 0) + (Number(form.costoRepuestos) || 0);
 
   useEffect(() => {
     if (registro) {
@@ -32,7 +36,9 @@ export const OTDrawer = ({ registro, equipo, tipos = [], onClose, onUpdated }) =
         fechaServicio: registro.fechaServicio ? registro.fechaServicio.split('T')[0] : '',
         lecturaActual: registro.lecturaActual ?? '',
         observaciones: registro.observaciones ?? '',
-        costoTotal: registro.costoTotal ?? '',
+        costoManoObra: registro.costoManoObra ?? '',
+        costoServicios: registro.costoServicios ?? '',
+        costoRepuestos: registro.costoRepuestos ?? '',
       });
       setEditMode(false);
       setSaveErr(null);
@@ -57,7 +63,9 @@ export const OTDrawer = ({ registro, equipo, tipos = [], onClose, onUpdated }) =
           fechaServicio: form.fechaServicio,
           lecturaActual: Number(form.lecturaActual),
           observaciones: form.observaciones || null,
-          costoTotal: form.costoTotal !== '' ? Number(form.costoTotal) : null,
+          costoManoObra: form.costoManoObra !== '' ? Number(form.costoManoObra) : null,
+          costoServicios: form.costoServicios !== '' ? Number(form.costoServicios) : null,
+          costoRepuestos: form.costoRepuestos !== '' ? Number(form.costoRepuestos) : null,
         }),
       });
       const json = await res.json();
@@ -75,6 +83,8 @@ export const OTDrawer = ({ registro, equipo, tipos = [], onClose, onUpdated }) =
   const cfg = tipoCfg(registro.tipo?.nombre);
   const unidad = equipo?.parametro?.unidad ?? '';
   const inputCls = 'w-full border border-slate-200 rounded-xl py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300 bg-white';
+
+  const costoTotal = (Number(registro.costoManoObra) || 0) + (Number(registro.costoServicios) || 0) + (Number(registro.costoRepuestos) || 0);
 
   return (
     <>
@@ -102,7 +112,10 @@ export const OTDrawer = ({ registro, equipo, tipos = [], onClose, onUpdated }) =
                 onClick={() => setEditMode(true)}
                 className="px-3 py-1.5 text-xs font-semibold border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600 transition-colors"
               >
-                ✏️ Editar
+                <span className="flex items-center gap-1.5">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                  Editar
+                </span>
               </button>
             )}
             <button
@@ -159,15 +172,34 @@ export const OTDrawer = ({ registro, equipo, tipos = [], onClose, onUpdated }) =
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Lectura {unidad ? `(${unidad})` : ''}</label>
-                    <input type="number" min="0" value={form.lecturaActual} onChange={e => setForm(p => ({ ...p, lecturaActual: e.target.value }))} className={inputCls} />
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Lectura {unidad ? `(${unidad})` : ''}</label>
+                  <input type="number" min="0" value={form.lecturaActual} onChange={e => setForm(p => ({ ...p, lecturaActual: e.target.value }))} className={inputCls} />
+                </div>
+
+                {/* Costos separados */}
+                <div>
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Desglose de Costos</p>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Mano de Obra</label>
+                      <input type="number" min="0" step="0.01" value={form.costoManoObra} onChange={e => setForm(p => ({ ...p, costoManoObra: e.target.value }))} placeholder="$0.00" className={inputCls} />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Servicios</label>
+                      <input type="number" min="0" step="0.01" value={form.costoServicios} onChange={e => setForm(p => ({ ...p, costoServicios: e.target.value }))} placeholder="$0.00" className={inputCls} />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Repuestos</label>
+                      <input type="number" min="0" step="0.01" value={form.costoRepuestos} onChange={e => setForm(p => ({ ...p, costoRepuestos: e.target.value }))} placeholder="$0.00" className={inputCls} />
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Costo Total ($)</label>
-                    <input type="number" min="0" step="0.01" value={form.costoTotal} onChange={e => setForm(p => ({ ...p, costoTotal: e.target.value }))} placeholder="Opcional" className={inputCls} />
-                  </div>
+                  {calculatedTotal > 0 && (
+                    <div className="mt-2 p-2 bg-slate-100 rounded-lg flex justify-between items-center">
+                      <span className="text-xs font-semibold text-slate-600">Total Calculado:</span>
+                      <span className="text-sm font-bold text-slate-900">${calculatedTotal.toLocaleString()}</span>
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -190,7 +222,6 @@ export const OTDrawer = ({ registro, equipo, tipos = [], onClose, onUpdated }) =
                 {[
                   { label: 'Fecha de Servicio', value: fmtDate(registro.fechaServicio) },
                   { label: `Lectura ${unidad ? `(${unidad})` : ''}`, value: registro.lecturaActual != null ? `${registro.lecturaActual.toLocaleString()} ${unidad}` : '—' },
-                  { label: 'Costo Total', value: fmtMoney(registro.costoTotal) },
                   { label: 'Tipo', value: registro.tipo?.nombre ?? '—' },
                 ].map(({ label, value }) => (
                   <div key={label} className="flex items-center justify-between px-5 py-3 border-b border-slate-50 last:border-0">
@@ -198,6 +229,30 @@ export const OTDrawer = ({ registro, equipo, tipos = [], onClose, onUpdated }) =
                     <span className="text-sm font-semibold text-slate-800">{value}</span>
                   </div>
                 ))}
+
+                {/* Desglose de costos */}
+                <div className="px-5 py-4 bg-slate-50/60 border-t border-slate-100">
+                  <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider mb-3">Desglose de Costos</p>
+                  <div className="grid grid-cols-3 gap-3 mb-3">
+                    <div>
+                      <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Mano de Obra</p>
+                      <p className="text-sm font-bold text-slate-800">{fmtMoney(registro.costoManoObra)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Servicios</p>
+                      <p className="text-sm font-bold text-slate-800">{fmtMoney(registro.costoServicios)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Repuestos</p>
+                      <p className="text-sm font-bold text-slate-800">{fmtMoney(registro.costoRepuestos)}</p>
+                    </div>
+                  </div>
+                  <div className="pt-3 border-t border-slate-200 flex justify-between items-center">
+                    <span className="text-xs font-semibold text-slate-600">Total</span>
+                    <span className="text-lg font-black text-slate-900">{fmtMoney(costoTotal > 0 ? costoTotal : registro.costoTotal)}</span>
+                  </div>
+                </div>
+
                 {registro.observaciones && (
                   <div className="px-5 py-4 bg-slate-50/60 border-t border-slate-100">
                     <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider mb-2">Observaciones</p>
@@ -254,8 +309,8 @@ export const OTDrawer = ({ registro, equipo, tipos = [], onClose, onUpdated }) =
             {/* Costo */}
             <div className="border-t border-slate-200 pt-4">
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Costo Total</p>
-              <p className={`text-2xl font-black ${registro.costoTotal != null ? 'text-slate-900' : 'text-slate-300'}`}>
-                {fmtMoney(registro.costoTotal)}
+              <p className={`text-2xl font-black ${costoTotal > 0 || registro.costoTotal != null ? 'text-slate-900' : 'text-slate-300'}`}>
+                {fmtMoney(costoTotal > 0 ? costoTotal : registro.costoTotal)}
               </p>
             </div>
           </div>

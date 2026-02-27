@@ -4,6 +4,10 @@ model PlanPreventivo {
   descripcionTarea String @map("descripcion_tarea")
   frecuenciaValor  Int    @map("frecuencia_valor")
 
+  // Tracking de ejecución basado en horas
+  horasUltimaEjecucion Int?      @default(0) @map("horas_ultima_ejecucion")
+  fechaUltimaEjecucion DateTime? @map("fecha_ultima_ejecucion") @db.Date
+
   equipo Equipo @relation(fields: [equipoId], references: [id])
 
   @@index([equipoId])

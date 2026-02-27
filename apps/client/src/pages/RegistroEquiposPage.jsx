@@ -73,7 +73,7 @@ export const RegistroEquipoPage = () => {
   const handleSubmit = (e) => {
     e.preventDefault();
     console.log('Guardando equipo:', form);
-    alert('Equipo guardado exitosamente ✅');
+    alert('Equipo guardado exitosamente');
   };
 
   return (

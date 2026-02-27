@@ -21,16 +21,22 @@ const FILTER_TABS = [
 ];
 
 /* ─── Formulario registro de mantenimiento ──────────────────────── */
-const RegistroForm = ({ equipoId, tipos, unidad, onGuardado, onCancel }) => {
+const RegistroForm = ({ equipoId, tipos, unidad, planes = [], onGuardado, onCancel }) => {
   const [form, setForm] = useState({
     tipoId: tipos[0]?.id ?? '',
     fechaServicio: new Date().toISOString().split('T')[0],
     lecturaActual: '',
     observaciones: '',
-    costoTotal: '',
+    costoManoObra: '',
+    costoServicios: '',
+    costoRepuestos: '',
+    planId: '',
   });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState(null);
+
+  const esPreventivo = tipos.find(t => t.id === form.tipoId)?.nombre === 'PREVENTIVO';
+  const calculatedTotal = (Number(form.costoManoObra) || 0) + (Number(form.costoServicios) || 0) + (Number(form.costoRepuestos) || 0);
 
   const handleSubmit = async () => {
     if (!form.tipoId || !form.fechaServicio || form.lecturaActual === '') {
@@ -43,7 +49,15 @@ const RegistroForm = ({ equipoId, tipos, unidad, onGuardado, onCancel }) => {
       const res = await fetch('/api/mantenimientos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, equipoId, lecturaActual: Number(form.lecturaActual), costoTotal: form.costoTotal !== '' ? Number(form.costoTotal) : null }),
+        body: JSON.stringify({
+          ...form,
+          equipoId,
+          lecturaActual: Number(form.lecturaActual),
+          costoManoObra: form.costoManoObra !== '' ? Number(form.costoManoObra) : null,
+          costoServicios: form.costoServicios !== '' ? Number(form.costoServicios) : null,
+          costoRepuestos: form.costoRepuestos !== '' ? Number(form.costoRepuestos) : null,
+          planId: form.planId ? Number(form.planId) : undefined,
+        }),
       });
       const json = await res.json();
       if (!json.ok) throw new Error(json.message);
@@ -75,21 +89,66 @@ const RegistroForm = ({ equipoId, tipos, unidad, onGuardado, onCancel }) => {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Lectura Actual {unidad ? `(${unidad})` : ''}</label>
-          <input type="number" min="0" value={form.lecturaActual} onChange={e => setForm(p => ({ ...p, lecturaActual: e.target.value }))} placeholder="Ej: 1250" className={inputCls} />
+      <div>
+        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Lectura Actual {unidad ? `(${unidad})` : ''}</label>
+        <input type="number" min="0" value={form.lecturaActual} onChange={e => setForm(p => ({ ...p, lecturaActual: e.target.value }))} placeholder="Ej: 1250" className={inputCls} />
+      </div>
+
+      {/* Costos separados */}
+      <div>
+        <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Desglose de Costos</p>
+        <div className="grid grid-cols-3 gap-3">
+          <div>
+            <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Mano de Obra</label>
+            <input type="number" min="0" step="0.01" value={form.costoManoObra} onChange={e => setForm(p => ({ ...p, costoManoObra: e.target.value }))} placeholder="$0.00" className={inputCls} />
+          </div>
+          <div>
+            <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Servicios</label>
+            <input type="number" min="0" step="0.01" value={form.costoServicios} onChange={e => setForm(p => ({ ...p, costoServicios: e.target.value }))} placeholder="$0.00" className={inputCls} />
+          </div>
+          <div>
+            <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Repuestos</label>
+            <input type="number" min="0" step="0.01" value={form.costoRepuestos} onChange={e => setForm(p => ({ ...p, costoRepuestos: e.target.value }))} placeholder="$0.00" className={inputCls} />
+          </div>
         </div>
-        <div>
-          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Costo Total ($)</label>
-          <input type="number" min="0" step="0.01" value={form.costoTotal} onChange={e => setForm(p => ({ ...p, costoTotal: e.target.value }))} placeholder="Opcional" className={inputCls} />
-        </div>
+        {calculatedTotal > 0 && (
+          <div className="mt-2 p-2 bg-slate-100 rounded-lg flex justify-between items-center">
+            <span className="text-xs font-semibold text-slate-600">Total Calculado:</span>
+            <span className="text-sm font-bold text-slate-900">${calculatedTotal.toLocaleString()}</span>
+          </div>
+        )}
       </div>
 
       <div>
         <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Observaciones</label>
         <textarea value={form.observaciones} onChange={e => setForm(p => ({ ...p, observaciones: e.target.value }))} rows={2} className={`${inputCls} resize-none`} placeholder="Detalles del servicio..." />
       </div>
+
+      {/* Selector de plan preventivo */}
+      {esPreventivo && planes.length > 0 && (
+        <div>
+          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Plan Preventivo Asociado</label>
+          <select value={form.planId} onChange={e => setForm(p => ({ ...p, planId: e.target.value }))} className={inputCls}>
+            <option value="">— Seleccionar plan —</option>
+            {planes.map(p => (
+              <option key={p.id} value={p.id}>{p.descripcionTarea} (c/{p.frecuenciaValor}h)</option>
+            ))}
+          </select>
+          <p className="text-xs text-slate-400 mt-1">Al seleccionar un plan, su base de horas se actualizará al horómetro actual del equipo.</p>
+        </div>
+      )}
+
+      {/* Nota */}
+      {esPreventivo && form.planId && (
+        <div className="flex items-start gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
+          <svg className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <p className="text-xs text-emerald-700">
+            <span className="font-bold">Preventivo:</span> El plan seleccionado se marcará como ejecutado.
+          </p>
+        </div>
+      )}
 
       <div className="flex gap-2 pt-1">
         <button onClick={handleSubmit} disabled={saving} className="flex-1 py-2 bg-slate-900 text-white text-sm font-bold rounded-xl hover:bg-slate-800 transition-colors disabled:opacity-60">
@@ -263,7 +322,10 @@ export const MantenimientoPage = () => {
   });
 
   /* ── costos calculados ── */
-  const totalCosto = registros.reduce((s, r) => s + Number(r.costoTotal ?? 0), 0);
+  const totalCosto = registros.reduce((s, r) => {
+    const costoTotal = (Number(r.costoManoObra) || 0) + (Number(r.costoServicios) || 0) + (Number(r.costoRepuestos) || 0);
+    return s + (costoTotal > 0 ? costoTotal : Number(r.costoTotal ?? 0));
+  }, 0);
   const porTipoLocale = tipos.map(t => ({
     nombre: t.nombre,
     count: registros.filter(r => r.tipo?.nombre === t.nombre).length,
@@ -297,6 +359,21 @@ export const MantenimientoPage = () => {
     } catch (e) { console.error(e); }
   };
 
+  const handleEjecutarPlan = async (planId) => {
+    try {
+      const res = await fetch(`/api/mantenimientos/planes/${planId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ marcarEjecutado: true }),
+      });
+      const json = await res.json();
+      if (json.ok) {
+        fetchDetalle(selectedId);
+        fetchEquipos();
+      }
+    } catch (e) { console.error(e); }
+  };
+
   return (
     <div className="flex h-screen overflow-hidden bg-[#F5F6FA]">
       <Sidebar />
@@ -307,15 +384,15 @@ export const MantenimientoPage = () => {
           subtitle="Registros, planes preventivos y costos por equipo"
           showSearch={false}
           notifications={[]}
-          actionButton={
-            <button
-              onClick={() => { setShowRegForm(true); setActiveTab('registros'); }}
-              className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-slate-900 hover:bg-slate-800 text-white rounded-xl transition-colors shadow-sm"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-              Nuevo Registro
-            </button>
-          }
+        // actionButton={
+        //   <button
+        //     onClick={() => { setShowRegForm(true); setActiveTab('registros'); }}
+        //     className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-slate-900 hover:bg-slate-800 text-white rounded-xl transition-colors shadow-sm"
+        //   >
+        //     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+        //     Nuevo Registro
+        //   </button>
+        // }
         />
 
         <div className="flex-1 overflow-hidden flex">
@@ -356,7 +433,10 @@ export const MantenimientoPage = () => {
                   >
                     <div className="flex items-start justify-between gap-2 mb-1">
                       <div className="flex-1 min-w-0">
-                        <p className={`text-sm font-semibold truncate ${isActive ? 'text-white' : 'text-slate-800'}`}>{eq.codigo}</p>
+                        <div className="flex items-center gap-1.5">
+                          <span className={`w-2 h-2 rounded-full shrink-0 ${eq.estadoOperativo === 'NO_OPERATIVO' ? 'bg-red-500' : 'bg-emerald-500'}`} />
+                          <p className={`text-sm font-semibold truncate ${isActive ? 'text-white' : 'text-slate-800'}`}>{eq.codigo}</p>
+                        </div>
                         <p className={`text-xs font-mono mt-0.5 truncate ${isActive ? 'text-slate-300' : 'text-slate-400'}`}>{eq.serial} · {eq.modelo}</p>
                       </div>
                       {ultimoMant && (
@@ -369,7 +449,12 @@ export const MantenimientoPage = () => {
                       <p className={`text-[11px] ${isActive ? 'text-slate-400' : 'text-slate-400'}`}>
                         {ultimoMant ? fmtDate(ultimoMant.fechaServicio) : 'Sin registros'}
                       </p>
-                      {eq.parametro?.unidad && ultimoMant && (
+                      {eq.horasMantenimientoPreventivo > 0 && (
+                        <span className={`text-[10px] font-mono ${isActive ? 'text-slate-300' : 'text-slate-500'}`}>
+                          {eq.horasAcumuladas ?? 0}/{eq.horasMantenimientoPreventivo}h
+                        </span>
+                      )}
+                      {!eq.horasMantenimientoPreventivo && eq.parametro?.unidad && ultimoMant && (
                         <span className={`text-[10px] font-mono ${isActive ? 'text-slate-300' : 'text-slate-500'}`}>
                           {ultimoMant.lecturaActual?.toLocaleString()} {eq.parametro.unidad}
                         </span>
@@ -400,7 +485,14 @@ export const MantenimientoPage = () => {
                         {equipoSel.codigo?.charAt(0) ?? 'E'}
                       </div>
                       <div>
-                        <h2 className="text-lg font-bold text-slate-900">{equipoSel.codigo}</h2>
+                        <div className="flex items-center gap-2">
+                          <h2 className="text-lg font-bold text-slate-900">{equipoSel.codigo}</h2>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${equipoSel.estadoOperativo === 'NO_OPERATIVO' ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'
+                            }`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${equipoSel.estadoOperativo === 'NO_OPERATIVO' ? 'bg-red-500' : 'bg-emerald-500'}`} />
+                            {equipoSel.estadoOperativo === 'NO_OPERATIVO' ? 'No Operativo' : 'Operativo'}
+                          </span>
+                        </div>
                         <p className="text-sm text-slate-400">
                           {equipoSel.marca?.nombre ?? '—'} · {equipoSel.modelo} · {equipoSel.ubicacion?.nombre ?? '—'}
                         </p>
@@ -408,17 +500,50 @@ export const MantenimientoPage = () => {
                       </div>
                     </div>
 
-                    {/* KPI: último registro */}
-                    {registros[0] && (
-                      <div className="text-right">
-                        <p className="text-xs text-slate-400">Último mantenimiento</p>
-                        <p className="text-sm font-bold text-slate-700">{fmtDate(registros[0].fechaServicio)}</p>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${tipoCfg(registros[0].tipo?.nombre).pill}`}>
-                          {registros[0].tipo?.nombre}
-                        </span>
+                    {/* KPI: último registro + horas */}
+                    <div className="text-right space-y-1">
+                      {registros[0] && (
+                        <div>
+                          <p className="text-xs text-slate-400">Último mantenimiento</p>
+                          <p className="text-sm font-bold text-slate-700">{fmtDate(registros[0].fechaServicio)}</p>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${tipoCfg(registros[0].tipo?.nombre).pill}`}>
+                            {registros[0].tipo?.nombre}
+                          </span>
+                        </div>
+                      )}
+                      <div className="mt-1">
+                        <p className="text-xs text-slate-400">Horas de uso total</p>
+                        <p className="text-sm font-bold text-slate-700 font-mono">
+                          {equipoSel.horasAcumuladas ?? 0}h
+                        </p>
                       </div>
-                    )}
+                    </div>
                   </div>
+
+                  {/* Alerta de planes */}
+                  {(() => {
+                    const horasEquipo = equipoSel.horasAcumuladas ?? 0;
+                    const vencidos = planes.filter(p => horasEquipo >= (p.horasUltimaEjecucion ?? 0) + p.frecuenciaValor);
+                    const proximos = planes.filter(p => p.frecuenciaValor > 0 && horasEquipo < (p.horasUltimaEjecucion ?? 0) + p.frecuenciaValor && horasEquipo >= (p.horasUltimaEjecucion ?? 0) + p.frecuenciaValor - Math.max(2, Math.round(p.frecuenciaValor * 0.1)));
+
+                    if (vencidos.length > 0) return (
+                      <div className="mt-3 flex items-center gap-3 bg-red-50 border border-red-200 rounded-xl px-4 py-2.5">
+                        <svg className="w-5 h-5 text-red-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                        <p className="text-xs text-red-700 font-medium flex-1">
+                          <strong>{vencidos.length} Plande(s) requeridos:</strong> Tienen su mantenimiento vencido. Ejecútelos desde la pestaña de Planes.
+                        </p>
+                      </div>
+                    );
+                    if (proximos.length > 0) return (
+                      <div className="mt-3 flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5">
+                        <svg className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        <p className="text-xs text-amber-700 font-medium flex-1">
+                          <strong>Mantenimientos próximos:</strong> Hay {proximos.length} tarea(s) en su umbral de aviso.
+                        </p>
+                      </div>
+                    );
+                    return null;
+                  })()}
 
                   {/* Tabs */}
                   <div className="flex gap-1 mt-5">
@@ -454,6 +579,7 @@ export const MantenimientoPage = () => {
                           equipoId={selectedId}
                           tipos={tipos}
                           unidad={equipoSel.parametro?.unidad}
+                          planes={planes}
                           onGuardado={handleRegistroCreado}
                           onCancel={() => setShowRegForm(false)}
                         />
@@ -472,42 +598,54 @@ export const MantenimientoPage = () => {
                         </div>
                       )}
 
-                      {registros.map(r => (
-                        <div key={r.id} onClick={() => setOtDrawer(r)}
-                          className="bg-white border border-slate-100 rounded-2xl p-5 cursor-pointer hover:border-slate-200 hover:shadow-sm transition-all"
-                        >
-                          <div className="flex items-start justify-between mb-3">
-                            <div className="flex items-center gap-2">
-                              <div className={`w-2.5 h-2.5 rounded-full ${tipoCfg(r.tipo?.nombre).dot}`} />
-                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${tipoCfg(r.tipo?.nombre).pill}`}>
-                                {r.tipo?.nombre ?? '—'}
-                              </span>
+                      {registros.map(r => {
+                        const costoTotal = (Number(r.costoManoObra) || 0) + (Number(r.costoServicios) || 0) + (Number(r.costoRepuestos) || 0);
+                        return (
+                          <div key={r.id} onClick={() => setOtDrawer(r)}
+                            className="bg-white border border-slate-100 rounded-2xl p-5 cursor-pointer hover:border-slate-200 hover:shadow-sm transition-all"
+                          >
+                            <div className="flex items-start justify-between mb-3">
+                              <div className="flex items-center gap-2">
+                                <div className={`w-2.5 h-2.5 rounded-full ${tipoCfg(r.tipo?.nombre).dot}`} />
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${tipoCfg(r.tipo?.nombre).pill}`}>
+                                  {r.tipo?.nombre ?? '—'}
+                                </span>
+                              </div>
+                              <span className="text-xs text-slate-400">{fmtDate(r.fechaServicio)}</span>
                             </div>
-                            <span className="text-xs text-slate-400">{fmtDate(r.fechaServicio)}</span>
-                          </div>
 
-                          <div className="grid grid-cols-3 gap-3 text-xs">
-                            <div className="bg-slate-50 rounded-xl p-3">
-                              <p className="text-slate-400 mb-0.5">Lectura</p>
-                              <p className="font-bold text-slate-800 font-mono">
-                                {r.lecturaActual?.toLocaleString() ?? '—'} <span className="font-normal text-slate-400">{equipoSel.parametro?.unidad ?? ''}</span>
-                              </p>
+                            <div className="grid grid-cols-4 gap-3 text-xs mb-3">
+                              <div className="bg-slate-50 rounded-xl p-3">
+                                <p className="text-slate-400 mb-0.5">Lectura</p>
+                                <p className="font-bold text-slate-800 font-mono">
+                                  {r.lecturaActual?.toLocaleString() ?? '—'} <span className="font-normal text-slate-400">{equipoSel.parametro?.unidad ?? ''}</span>
+                                </p>
+                              </div>
+                              <div className="bg-blue-50 rounded-xl p-3">
+                                <p className="text-slate-400 mb-0.5">Mano de Obra</p>
+                                <p className="font-bold text-slate-800">{fmtMoney(r.costoManoObra)}</p>
+                              </div>
+                              <div className="bg-amber-50 rounded-xl p-3">
+                                <p className="text-slate-400 mb-0.5">Servicios</p>
+                                <p className="font-bold text-slate-800">{fmtMoney(r.costoServicios)}</p>
+                              </div>
+                              <div className="bg-emerald-50 rounded-xl p-3">
+                                <p className="text-slate-400 mb-0.5">Repuestos</p>
+                                <p className="font-bold text-slate-800">{fmtMoney(r.costoRepuestos)}</p>
+                              </div>
                             </div>
-                            <div className="bg-slate-50 rounded-xl p-3">
-                              <p className="text-slate-400 mb-0.5">Costo Total</p>
-                              <p className="font-bold text-slate-800">{fmtMoney(r.costoTotal)}</p>
-                            </div>
-                            <div className="bg-slate-50 rounded-xl p-3">
-                              <p className="text-slate-400 mb-0.5">ID Registro</p>
-                              <p className="font-bold text-slate-800 font-mono">#{r.id}</p>
-                            </div>
-                          </div>
 
-                          {r.observaciones && (
-                            <p className="text-xs text-slate-500 mt-3 italic line-clamp-2">"{r.observaciones}"</p>
-                          )}
-                        </div>
-                      ))}
+                            <div className="flex items-center justify-between">
+                              <p className="text-xs text-slate-400">ID Registro: <span className="font-bold text-slate-600 font-mono">#{r.id}</span></p>
+                              <p className="text-sm font-bold text-slate-900">Total: {fmtMoney(costoTotal > 0 ? costoTotal : r.costoTotal)}</p>
+                            </div>
+
+                            {r.observaciones && (
+                              <p className="text-xs text-slate-500 mt-3 italic line-clamp-2">"{r.observaciones}"</p>
+                            )}
+                          </div>
+                        );
+                      })}
 
                       {!showRegForm && registros.length > 0 && (
                         <button onClick={() => setShowRegForm(true)}
@@ -546,34 +684,87 @@ export const MantenimientoPage = () => {
                         </div>
                       )}
 
-                      {planes.map(plan => (
-                        <div key={plan.id} className="bg-white border border-slate-100 rounded-2xl p-5">
-                          <div className="flex items-start justify-between mb-3">
-                            <div className="flex items-center gap-2">
-                              <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                              </svg>
-                              <span className="text-xs font-bold text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full">
-                                Cada {plan.frecuenciaValor} {equipoSel.parametro?.unidad ?? 'unidades'}
-                              </span>
+                      {planes.map(plan => {
+                        const horasEquipo = equipoSel?.horasAcumuladas ?? 0;
+                        const base = plan.horasUltimaEjecucion ?? 0;
+                        const frecuencia = plan.frecuenciaValor;
+                        const meta = base + frecuencia;
+                        const umbral = Math.max(2, Math.round(frecuencia * 0.1));
+                        const horasRestantes = Math.max(0, meta - horasEquipo);
+                        const pct = frecuencia > 0 ? Math.min(100, Math.max(0, ((horasEquipo - base) / frecuencia) * 100)) : 0;
+
+                        let nivel = 'normal';
+                        if (horasEquipo >= meta) nivel = 'critico';
+                        else if (horasEquipo >= meta - umbral) nivel = 'advertencia';
+                        else if (pct >= 70) nivel = 'precaucion';
+
+                        const borderCls = nivel === 'critico' ? 'border-red-200 bg-red-50' :
+                          nivel === 'advertencia' ? 'border-amber-200 bg-amber-50' :
+                            nivel === 'precaucion' ? 'border-yellow-100 bg-yellow-50' :
+                              'border-slate-100 bg-white';
+                        const barColor = nivel === 'critico' ? 'bg-red-500' :
+                          nivel === 'advertencia' ? 'bg-amber-500' :
+                            nivel === 'precaucion' ? 'bg-yellow-500' : 'bg-emerald-500';
+
+                        return (
+                          <div key={plan.id} className={`border rounded-2xl p-5 ${borderCls}`}>
+                            <div className="flex items-start justify-between mb-2">
+                              <div>
+                                <p className="text-sm font-bold text-slate-800">{plan.descripcionTarea}</p>
+                                <span className="text-xs text-blue-600 font-semibold">Cada {frecuencia}h</span>
+                                {nivel !== 'normal' && (
+                                  <span className={`ml-2 text-[9px] font-bold px-1.5 py-0.5 rounded text-white ${nivel === 'critico' ? 'bg-red-500' : nivel === 'advertencia' ? 'bg-amber-500' : 'bg-yellow-500'}`}>
+                                    {nivel === 'critico' ? 'VENCIDO' : nivel === 'advertencia' ? 'UMBRAL' : 'PRÓXIMO'}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <button onClick={() => { setEditPlan(plan); setShowPlanForm(false); }}
+                                  className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors text-xs font-semibold"
+                                >Editar</button>
+                                <button onClick={() => handleDeletePlan(plan.id)}
+                                  className="p-1.5 rounded-lg hover:bg-red-50 text-slate-300 hover:text-red-400 transition-colors"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                </button>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-1">
-                              <button onClick={() => { setEditPlan(plan); setShowPlanForm(false); }}
-                                className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors text-xs font-semibold"
-                              >
-                                Editar
-                              </button>
-                              <button onClick={() => handleDeletePlan(plan.id)}
-                                className="p-1.5 rounded-lg hover:bg-red-50 text-slate-300 hover:text-red-400 transition-colors"
-                              >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                              </button>
+
+                            <div className="grid grid-cols-4 gap-2 text-center text-xs my-3">
+                              <div><p className="text-slate-400">Base</p><p className="font-bold text-slate-700">{base}h</p></div>
+                              <div><p className="text-slate-400">Meta</p><p className="font-bold text-blue-700">{meta}h</p></div>
+                              <div><p className="text-slate-400">Umbral</p><p className="font-bold text-amber-600">{umbral}h</p></div>
+                              <div><p className="text-slate-400">Restantes</p><p className={`font-bold ${nivel === 'critico' ? 'text-red-600' : nivel === 'advertencia' ? 'text-amber-600' : 'text-emerald-600'}`}>{horasRestantes}h</p></div>
                             </div>
+
+                            <div className="relative mb-1">
+                              <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                                <div className={`h-full ${barColor} transition-all`} style={{ width: `${pct}%` }} />
+                              </div>
+                              <div className="absolute top-0 w-0.5 h-2 bg-slate-800 opacity-40" style={{ left: `${Math.max(0, ((frecuencia - umbral) / frecuencia) * 100)}%` }} />
+                            </div>
+                            <div className="flex justify-between text-[10px] text-slate-400 mb-2">
+                              <span>{base}h (base)</span>
+                              <span className="font-semibold text-slate-600">{horasEquipo}h actual</span>
+                              <span>{meta}h (meta)</span>
+                            </div>
+
+                            {plan.fechaUltimaEjecucion && (
+                              <p className="text-[10px] text-slate-400 mb-2">Última ejecución: {fmtDate(plan.fechaUltimaEjecucion)}</p>
+                            )}
+
+                            <button
+                              onClick={() => handleEjecutarPlan(plan.id)}
+                              className={`w-full py-2.5 text-xs font-bold rounded-xl transition-colors ${nivel === 'critico' ? 'bg-red-600 hover:bg-red-700 text-white' :
+                                nivel === 'advertencia' ? 'bg-amber-500 hover:bg-amber-600 text-white' :
+                                  'bg-emerald-600 hover:bg-emerald-700 text-white'
+                                }`}
+                            >
+                              Ejecutar Mantenimiento
+                            </button>
                           </div>
-                          <p className="text-sm text-slate-700">{plan.descripcionTarea}</p>
-                          <p className="text-xs text-slate-400 mt-1 font-mono">Plan #{plan.id}</p>
-                        </div>
-                      ))}
+                        );
+                      })}
 
                       {!showPlanForm && !editPlan && planes.length > 0 && (
                         <button onClick={() => setShowPlanForm(true)}
@@ -739,9 +930,14 @@ export const MantenimientoPage = () => {
                             {/* Diferencia */}
                             {totalEstimado > 0 && (
                               <div className={`rounded-xl p-3 flex items-center justify-between ${delta > 0 ? 'bg-red-50' : 'bg-emerald-50'}`}>
-                                <span className={`text-xs font-semibold ${delta > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                                  {delta > 0 ? '⚠ Sobrecosto' : '✓ Por debajo del presupuesto'}
-                                </span>
+                                <div className={`flex items-center gap-1.5 text-xs font-semibold ${delta > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                                  {delta > 0 ? (
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                  ) : (
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                                  )}
+                                  {delta > 0 ? 'Sobrecosto' : 'Por debajo del presupuesto'}
+                                </div>
                                 <span className={`text-sm font-black ${delta > 0 ? 'text-red-700' : 'text-emerald-700'}`}>
                                   {delta > 0 ? '+' : ''}{fmtMoney(delta)}
                                 </span>

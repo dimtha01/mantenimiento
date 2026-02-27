@@ -12,7 +12,8 @@
     "db:studio": "env-cmd -f .env pnpm --filter api exec prisma studio --schema=prisma/schema",
     "db:push": "env-cmd -f .env pnpm --filter api exec prisma db push --schema=prisma/schema",
     "db:pull": "env-cmd -f .env pnpm --filter api exec prisma db pull --schema=prisma/schema",
-    "db:generate": "env-cmd -f .env pnpm --filter api exec prisma generate --schema=prisma/schema"
+    "db:generate": "env-cmd -f .env pnpm --filter api exec prisma generate --schema=prisma/schema",
+    "db:reset": "env-cmd -f .env pnpm --filter api exec prisma migrate reset"
   },
   "keywords": [],
   "author": "",
