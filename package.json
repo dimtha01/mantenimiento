@@ -8,12 +8,12 @@
     "dev:api": "env-cmd -f .env --silent turbo dev --filter=api",
     "build": "turbo run build",
     "lint": "turbo run lint",
-    "db:migrate": "env-cmd -f .env pnpm --filter api exec prisma migrate dev --schema=prisma/schema",
-    "db:studio": "env-cmd -f .env pnpm --filter api exec prisma studio --schema=prisma/schema",
-    "db:push": "env-cmd -f .env pnpm --filter api exec prisma db push --schema=prisma/schema",
-    "db:pull": "env-cmd -f .env pnpm --filter api exec prisma db pull --schema=prisma/schema",
-    "db:generate": "env-cmd -f .env pnpm --filter api exec prisma generate --schema=prisma/schema",
-    "db:reset": "env-cmd -f .env pnpm --filter api exec prisma migrate reset"
+    "db:migrate": "env-cmd -f .env pnpm dlx --package=prisma@6.19.2 prisma migrate dev --schema=apps/api/prisma/schema",
+    "db:studio": "env-cmd -f .env pnpm dlx --package=prisma@6.19.2 prisma studio --schema=apps/api/prisma/schema",
+    "db:push": "env-cmd -f .env pnpm dlx --package=prisma@6.19.2 prisma db push --schema=apps/api/prisma/schema",
+    "db:pull": "env-cmd -f .env pnpm dlx --package=prisma@6.19.2 prisma db pull --schema=apps/api/prisma/schema",
+    "db:generate": "env-cmd -f .env pnpm dlx --package=prisma@6.19.2 prisma generate --schema=apps/api/prisma/schema",
+    "db:reset": "env-cmd -f .env pnpm dlx --package=prisma@6.19.2 prisma migrate reset --schema=apps/api/prisma/schema --force"
   },
   "keywords": [],
   "author": "",
