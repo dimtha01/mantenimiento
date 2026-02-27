@@ -1,5 +1,12 @@
 [phases.build]
-cmds = ["pnpm install", "pnpm run build", "pnpm dlx --package=prisma@6.19.2 prisma generate --schema=apps/api/prisma/schema"]
+cmds = [
+  "pnpm install --frozen-lockfile"
+]
+
+[phases.setup]
+cmds = [
+  "pnpm dlx --package=prisma@6.19.2 prisma generate --schema=apps/api/prisma/schema"
+]
 
 [start]
 cmd = "node apps/api/src/index.js"
