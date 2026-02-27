@@ -53,7 +53,7 @@ export const LoginPage = () => {
       {/* Panel izquierdo — imagen, solo en pantallas lg+ */}
       <div className="hidden lg:flex lg:w-1/2 relative">
         <img
-          src="https://images.unsplash.com/photo-1581094794329-c8112a89af12?auto=format&fit=crop&w=1200&q=80"
+          src="https://images.unsplash.com/photo-1504328345606-18bbc8c9d7d1?auto=format&fit=crop&w=1200&q=80"
           alt="Planta industrial"
           className="absolute inset-0 w-full h-full object-cover"
         />
@@ -79,15 +79,6 @@ export const LoginPage = () => {
         <div className="flex-1 flex flex-col justify-center px-8 md:px-16 lg:px-20 w-full max-w-lg mx-auto pb-12">
           {/* Logo / ícono */}
           <div className="mb-10">
-            <div className="bg-[#0047AB]/10 w-14 h-14 flex items-center justify-center rounded-2xl mb-6">
-              {/* Ícono engranaje inline */}
-              <svg className="w-7 h-7 text-[#0047AB]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
-                  d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
-                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-            </div>
             <h1 className="text-3xl font-bold text-neutral-900 mb-1">Bienvenido</h1>
             <p className="text-neutral-400 text-sm">Ingresa tus credenciales para continuar</p>
           </div>
