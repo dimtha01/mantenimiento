@@ -20,6 +20,7 @@ export const Header = ({
   notifications = [],
   onNotifClick,
   onNotifMarkAll,
+  onMenuClick,
 }) => {
   const [showPanel, setShowPanel] = useState(false);
 
@@ -57,7 +58,7 @@ export const Header = ({
 
   // Mezclar notificaciones externas + alertas de mantenimiento calculando su estado 'leido'
   const alertsWithLeida = alertas.map(a => {
-    const aid = `alerta-${a.planId}-${a.equipoId}-${a.horasEquipo}`; // Un id unico que cambia si las horas cambian
+    const aid = `alerta-${a.planId}-${a.equipoId}-${a.nivelAlerta}`; // Un id unico que cambia solo si cambia el nivel de alerta
     return {
       id: aid,
       leida: dimissed.includes(aid),
@@ -65,6 +66,7 @@ export const Header = ({
       descripcion: `Meta: ${a.meta}h | Actual: ${a.horasEquipo}h | Restantes: ${a.horasRestantes}h`,
       tiempo: a.nivelAlerta === 'critico' ? 'Vencido' : 'Próximo',
       color: a.nivelAlerta === 'critico' ? 'red' : a.nivelAlerta === 'advertencia' ? 'amber' : 'orange',
+      equipoId: a.equipoId
     };
   });
 
@@ -72,27 +74,39 @@ export const Header = ({
   const noLeidas = allNotifs.filter((n) => !n.leida).length;
 
   return (
-    <header className="bg-white border-b border-gray-200 px-8 py-5 shrink-0 relative z-20">
-      <div className="flex items-center justify-between">
+    <header className="bg-white border-b border-gray-200 px-3 md:px-8 py-4 md:py-5 shrink-0 relative z-20">
+      <div className="flex items-center gap-3">
+
+        {/* Menú hamburguesa para móvil */}
+        {onMenuClick && (
+          <button
+            onClick={onMenuClick}
+            className="lg:hidden w-10 h-10 flex items-center justify-center rounded-xl hover:bg-slate-100 transition-colors"
+          >
+            <svg className="w-6 h-6 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+        )}
 
         {/* Título */}
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">{title}</h1>
-          {subtitle && <p className="text-sm text-slate-500 mt-1">{subtitle}</p>}
+        <div className="min-w-0 flex-1">
+          <h1 className="text-lg md:text-xl lg:text-2xl font-bold text-slate-900 truncate">{title}</h1>
+          {subtitle && <p className="text-xs md:text-sm text-slate-500 mt-0.5 md:mt-1 truncate">{subtitle}</p>}
         </div>
 
         {/* Acciones */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 md:gap-3 ml-auto">
 
           {/* Buscador opcional */}
           {showSearch && (
-            <div className="relative group">
+            <div className="relative group hidden sm:block flex-1 sm:flex-none max-w-xs md:max-w-none">
               <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-blue-600"
                 fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
               <input
-                className="w-80 pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
+                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
                 placeholder="Buscar..."
                 type="text"
                 value={searchValue}
@@ -122,7 +136,7 @@ export const Header = ({
             {showPanel && (
               <>
                 <div className="fixed inset-0 z-10" onClick={() => setShowPanel(false)} />
-                <div className="absolute right-0 top-12 w-96 bg-white rounded-2xl shadow-xl border border-slate-200 z-20 overflow-hidden">
+                <div className="absolute right-0 top-12 w-[calc(100vw-2rem)] sm:w-96 bg-white rounded-2xl shadow-xl border border-slate-200 z-20 overflow-hidden max-h-[80vh]">
                   <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
                     <div className="flex items-center gap-2">
                       <h3 className="text-sm font-bold text-slate-900">Notificaciones</h3>
@@ -146,7 +160,7 @@ export const Header = ({
                     </div>
                   </div>
 
-                  <div className="max-h-[400px] overflow-y-auto divide-y divide-slate-50">
+                  <div className="max-h-[50vh] sm:max-h-[400px] overflow-y-auto divide-y divide-slate-50">
                     {allNotifs.length === 0 ? (
                       <div className="py-12 text-center">
                         <svg className="w-8 h-8 text-slate-200 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -162,18 +176,22 @@ export const Header = ({
                             key={n.id}
                             onClick={() => {
                               if (!n.leida) handleMarkRead(n.id);
-                              onNotifClick?.(n);
+                              if (onNotifClick) {
+                                onNotifClick(n);
+                              } else if (n.equipoId) {
+                                window.location.href = `/mantenimiento?equipo=${n.equipoId}`;
+                              }
                               setShowPanel(false);
                             }}
                             className={`flex items-start gap-3 px-5 py-4 cursor-pointer hover:bg-slate-50 transition-colors ${!n.leida ? cfg.bg : ''}`}
                           >
                             <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${!n.leida ? cfg.dot : 'bg-slate-200'}`} />
                             <div className="flex-1 min-w-0">
-                              <div className="flex items-center justify-between gap-2 mb-0.5">
+                              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 mb-0.5">
                                 <p className={`text-xs font-bold truncate ${!n.leida ? 'text-slate-900' : 'text-slate-500'}`}>{n.titulo}</p>
                                 <span className="text-[10px] text-slate-400 shrink-0">{n.tiempo}</span>
                               </div>
-                              <p className="text-xs text-slate-500 leading-snug">{n.descripcion}</p>
+                              <p className="text-xs text-slate-500 leading-snug line-clamp-2">{n.descripcion}</p>
                             </div>
                           </div>
                         );
@@ -194,9 +212,8 @@ export const Header = ({
           </div>
 
           {/* Avatar + usuario */}
-          <div className="flex items-center gap-3 pl-4 border-l border-slate-200">
-            <img src="https://i.pravatar.cc/150?img=68" alt="User" className="w-10 h-10 rounded-full border-2 border-slate-200" />
-            <div className="hidden lg:block">
+          <div className="flex items-center gap-2 md:gap-3 pl-0 sm:pl-4 border-l-0 sm:border-l border-slate-200">
+            <div className="hidden md:block">
               <p className="text-sm font-semibold text-slate-900">Mark Lee</p>
               <p className="text-xs text-slate-500">marklee@gmail.com</p>
             </div>

@@ -114,6 +114,7 @@ const KPI = ({ label, value, sub, icon, dark, alert }) => (
 
 /* ─── Página ────────────────────────────────────────── */
 export const DashboardPage = () => {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [data, setData] = useState(null);
   const [alertasHoras, setAlertasHoras] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -149,12 +150,13 @@ export const DashboardPage = () => {
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#F5F6FA]">
-      <Sidebar />
+      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <main className="flex-1 flex flex-col overflow-hidden">
         <Header
           title="Dashboard"
           subtitle="Resumen en tiempo real del sistema de mantenimiento"
           showSearch={false}
+          onMenuClick={() => setSidebarOpen(!sidebarOpen)}
           actionButton={
             <button onClick={load} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 rounded-lg transition-colors">
               <svg className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -178,7 +180,7 @@ export const DashboardPage = () => {
 
           {/* Loading */}
           {loading && (
-            <div className="grid grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {[1, 2, 3, 4].map(i => <div key={i} className="h-24 bg-white rounded-xl border border-slate-200 animate-pulse" />)}
             </div>
           )}
@@ -186,7 +188,7 @@ export const DashboardPage = () => {
           {!loading && data && (<>
 
             {/* ══ KPIs ══ */}
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <KPI dark
                 label="Costo Total Mantenimientos"
                 value={fmt$(k.costoTotal)}
@@ -210,10 +212,10 @@ export const DashboardPage = () => {
             {/* Alertas de Mantenimiento eliminadas del dashboard principal - Se muestran en Header */}
 
             {/* ══ Fila central ══ */}
-            <div className="grid grid-cols-3 gap-5">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
 
               {/* Actividad mensual (2 cols) */}
-              <div className="col-span-2 bg-white rounded-xl border border-slate-200 p-5">
+              <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 p-5">
                 <div className="flex items-center justify-between mb-4">
                   <div>
                     <h3 className="text-sm font-bold text-slate-900">Actividad Mensual</h3>
@@ -242,18 +244,18 @@ export const DashboardPage = () => {
             </div>
 
             {/* ══ Fila inferior ══ */}
-            <div className="grid grid-cols-2 gap-5">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
 
               {/* Últimos registros */}
               <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-                <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100">
+                <div className="flex items-center justify-between px-4 sm:px-5 py-3 border-b border-slate-100">
                   <h3 className="text-sm font-bold text-slate-900">Últimos Registros</h3>
-                  <a href="/mantenimiento" className="text-xs text-slate-400 hover:text-slate-700 font-semibold transition-colors">Ver todos →</a>
+                  <a href="/admin/mantenimiento" className="text-xs text-slate-400 hover:text-slate-700 font-semibold transition-colors">Ver todos →</a>
                 </div>
                 <div className="divide-y divide-slate-50">
                   {ult.length === 0 && <p className="text-xs text-slate-400 text-center py-8">Sin registros</p>}
                   {ult.map(r => (
-                    <div key={r.id} className="flex items-center px-5 py-2.5 gap-3 hover:bg-slate-50 transition-colors">
+                    <div key={r.id} className="flex items-center px-3 sm:px-5 py-2.5 gap-2 sm:gap-3 hover:bg-slate-50 transition-colors">
                       <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${tc(r.tipo?.nombre).dot}`} />
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-semibold text-slate-800 truncate">{r.equipo?.codigo ?? `#${r.equipoId}`}</p>
@@ -270,20 +272,20 @@ export const DashboardPage = () => {
 
               {/* Top equipos */}
               <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-                <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100">
+                <div className="flex items-center justify-between px-4 sm:px-5 py-3 border-b border-slate-100">
                   <h3 className="text-sm font-bold text-slate-900">Top Equipos</h3>
-                  <a href="/equipos" className="text-xs text-slate-400 hover:text-slate-700 font-semibold transition-colors">Ver todos →</a>
+                  <a href="/admin/gestion-equipos" className="text-xs text-slate-400 hover:text-slate-700 font-semibold transition-colors">Ver todos →</a>
                 </div>
                 <div className="divide-y divide-slate-50">
                   {topE.length === 0 && <p className="text-xs text-slate-400 text-center py-8">Sin datos</p>}
                   {topE.map((item, i) => (
-                    <div key={item.equipo?.id ?? i} className="px-5 py-3 hover:bg-slate-50 transition-colors">
+                    <div key={item.equipo?.id ?? i} className="px-3 sm:px-5 py-3 hover:bg-slate-50 transition-colors">
                       <div className="flex items-center justify-between mb-1.5">
                         <div className="flex items-center gap-2">
                           <span className="text-[10px] font-black text-slate-300 tabular-nums w-4">#{i + 1}</span>
                           <div>
-                            <p className="text-xs font-semibold text-slate-800">{item.equipo?.codigo ?? `Equipo ${i + 1}`}</p>
-                            <p className="text-[10px] text-slate-400">{item.equipo?.marca?.nombre ?? ''}</p>
+                            <p className="text-xs font-semibold text-slate-800 truncate max-w-[120px] sm:max-w-none">{item.equipo?.codigo ?? `Equipo ${i + 1}`}</p>
+                            <p className="text-[10px] text-slate-400 truncate">{item.equipo?.marca?.nombre ?? ''}</p>
                           </div>
                         </div>
                         <div className="text-right">

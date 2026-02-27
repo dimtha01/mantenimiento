@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Sidebar } from '../components/Sidebar';
 import { Header } from '../components/Header';
+import { Modal } from '../components/Modal';
 
 /* ─── helpers ─────────────────────────────────────────────────── */
 const ROL_CFG = {
@@ -14,8 +15,12 @@ const fmtDate = (iso) => iso
   ? new Date(iso).toLocaleDateString('es-VE', { day: '2-digit', month: 'short', year: 'numeric' })
   : '—';
 
-const initials = (nombre, email) => {
-  if (nombre) return nombre.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+const initials = (nombre, apellido, email) => {
+  if (nombre || apellido) {
+    const n = nombre ? nombre.charAt(0) : '';
+    const a = apellido ? apellido.charAt(0) : '';
+    return `${n}${a}`.toUpperCase();
+  }
   return (email ?? '??').slice(0, 2).toUpperCase();
 };
 
@@ -34,6 +39,7 @@ const UsuarioModal = ({ usuario, roles, onClose, onSaved }) => {
   const isNew = !usuario?.id;
   const [form, setForm] = useState({
     nombre: usuario?.nombre ?? '',
+    apellido: usuario?.apellido ?? '',
     email: usuario?.email ?? '',
     rolId: usuario?.rolId ?? usuario?.rol?.id ?? '',
     newPassword: '',
@@ -56,8 +62,8 @@ const UsuarioModal = ({ usuario, roles, onClose, onSaved }) => {
       const url = isNew ? '/api/usuarios' : `/api/usuarios/${usuario.id}`;
       const method = isNew ? 'POST' : 'PUT';
       const body = isNew
-        ? { nombre: form.nombre || null, email: form.email, rolId: Number(form.rolId), password: form.newPassword }
-        : { nombre: form.nombre || null, email: form.email, rolId: Number(form.rolId) };
+        ? { nombre: form.nombre || null, apellido: form.apellido || null, email: form.email, rolId: Number(form.rolId), password: form.newPassword }
+        : { nombre: form.nombre || null, apellido: form.apellido || null, email: form.email, rolId: Number(form.rolId) };
       const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const json = await res.json();
       if (!json.ok) throw new Error(json.message);
@@ -109,10 +115,17 @@ const UsuarioModal = ({ usuario, roles, onClose, onSaved }) => {
           <div className="px-6 py-5 space-y-4">
             {err && <p className="text-sm text-red-500 bg-red-50 rounded-xl px-4 py-2">{err}</p>}
 
-            <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Nombre</label>
-              <input value={form.nombre} onChange={e => setForm(p => ({ ...p, nombre: e.target.value }))}
-                placeholder="Nombre completo" className={inputCls} />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Nombre</label>
+                <input value={form.nombre} onChange={e => setForm(p => ({ ...p, nombre: e.target.value }))}
+                  placeholder="Ej: Juan" className={inputCls} />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Apellido</label>
+                <input value={form.apellido} onChange={e => setForm(p => ({ ...p, apellido: e.target.value }))}
+                  placeholder="Ej: Pérez" className={inputCls} />
+              </div>
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Email *</label>
@@ -199,6 +212,7 @@ const UsuarioModal = ({ usuario, roles, onClose, onSaved }) => {
 /*  Página principal — diseño original con sidebar derecho        */
 /* ─────────────────────────────────────────────────────────────── */
 export const GestionUsuarioPage = () => {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [usuarios, setUsuarios] = useState([]);
   const [roles, setRoles] = useState([]);
   const [total, setTotal] = useState(0);
@@ -214,6 +228,8 @@ export const GestionUsuarioPage = () => {
   /* eliminar */
   const [delLoading, setDelLoading] = useState(false);
   const [delError, setDelError] = useState(null);
+  const [deleteModal, setDeleteModal] = useState({ open: false, userName: '', userEmail: '' });
+  const [userToDelete, setUserToDelete] = useState(null);
 
   /* ── fetch roles ── */
   useEffect(() => {
@@ -238,6 +254,7 @@ export const GestionUsuarioPage = () => {
   const filtered = usuarios.filter(u => {
     const matchSearch = !search ||
       (u.nombre ?? '').toLowerCase().includes(search.toLowerCase()) ||
+      (u.apellido ?? '').toLowerCase().includes(search.toLowerCase()) ||
       u.email.toLowerCase().includes(search.toLowerCase());
     const matchRol = rolFilter === 'todos' || u.rol?.nombre === rolFilter;
     return matchSearch && matchRol;
@@ -255,17 +272,28 @@ export const GestionUsuarioPage = () => {
   };
 
   /* ── eliminar desde sidebar ── */
-  const handleDelete = async (user) => {
-    if (!window.confirm(`¿Eliminar a ${user.nombre ?? user.email}?`)) return;
+  const handleDeleteClick = (user) => {
+    setDeleteModal({
+      open: true,
+      userName: `${user.nombre ?? ''} ${user.apellido ?? ''}`.trim() || user.email,
+      userEmail: user.email,
+    });
+    setUserToDelete(user);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!userToDelete) return;
     setDelLoading(true);
     setDelError(null);
     try {
-      const res = await fetch(`/api/usuarios/${user.id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/usuarios/${userToDelete.id}`, { method: 'DELETE' });
       const json = await res.json();
       if (!json.ok) throw new Error(json.message);
-      setUsuarios(p => p.filter(u => u.id !== user.id));
+      setUsuarios(p => p.filter(u => u.id !== userToDelete.id));
       setTotal(p => p - 1);
       setSelectedUser(null);
+      setDeleteModal({ open: false, userName: '', userEmail: '' });
+      setUserToDelete(null);
     } catch (e) {
       setDelError(e.message);
     } finally {
@@ -275,7 +303,7 @@ export const GestionUsuarioPage = () => {
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#F8F9FA] relative">
-      <Sidebar />
+      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       {/* MAIN */}
       <main className="flex-1 flex flex-col overflow-hidden">
@@ -285,6 +313,7 @@ export const GestionUsuarioPage = () => {
           showSearch
           searchValue={search}
           onSearchChange={e => setSearch(e.target.value)}
+          onMenuClick={() => setSidebarOpen(!sidebarOpen)}
           actionButton={
             <button
               onClick={() => { setModalUser({}); setShowModal(true); }}
@@ -299,7 +328,7 @@ export const GestionUsuarioPage = () => {
         />
 
         {/* Filters & Grid */}
-        <div className="flex-1 overflow-y-auto p-8">
+        <div className="flex-1 overflow-y-auto p-4 md:p-8">
 
           {/* Tabs */}
           <div className="flex gap-2 mb-8 border-b border-slate-200 pb-0">
@@ -309,8 +338,8 @@ export const GestionUsuarioPage = () => {
             ].map(tab => (
               <button key={tab.id} onClick={() => setRolFilter(tab.id)}
                 className={`px-6 py-3 text-sm font-bold transition-all border-b-2 -mb-px ${rolFilter === tab.id
-                    ? 'text-slate-900 border-slate-900'
-                    : 'text-slate-500 border-transparent hover:text-slate-700'
+                  ? 'text-slate-900 border-slate-900'
+                  : 'text-slate-500 border-transparent hover:text-slate-700'
                   }`}>
                 {tab.label}
               </button>
@@ -359,14 +388,14 @@ export const GestionUsuarioPage = () => {
                     <div className="flex justify-between items-start mb-4">
                       {/* Avatar con iniciales */}
                       <div className={`w-16 h-16 rounded-full flex items-center justify-center text-white font-bold text-xl ${avatarBg(user.id)} shadow-sm`}>
-                        {initials(user.nombre, user.email)}
+                        {initials(user.nombre, user.apellido, user.email)}
                       </div>
                       <span className={`px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider ${cfg.pill}`}>
                         {user.rol?.nombre ?? '—'}
                       </span>
                     </div>
                     <h3 className="text-base font-bold text-slate-900 group-hover:text-blue-600 transition-colors truncate">
-                      {user.nombre ?? <span className="text-slate-400 italic font-normal">Sin nombre</span>}
+                      {user.nombre || user.apellido ? `${user.nombre ?? ''} ${user.apellido ?? ''}`.trim() : <span className="text-slate-400 italic font-normal">Sin nombre</span>}
                     </h3>
                     <p className="text-xs text-slate-500 mb-1 truncate">{user.email}</p>
                     <p className="text-[10px] text-slate-300">Desde {fmtDate(user.createdAt)}</p>
@@ -385,7 +414,7 @@ export const GestionUsuarioPage = () => {
 
       {/* RIGHT SIDEBAR — DETALLES */}
       {selectedUser && (
-        <aside className="fixed right-0 top-0 h-full w-96 bg-white border-l border-slate-200 flex flex-col shadow-2xl z-50 animate-slide-in">
+        <aside className="fixed right-0 top-0 h-full w-full sm:w-96 bg-white border-l border-slate-200 flex flex-col shadow-2xl z-50 animate-slide-in">
           <div className="p-8 border-b border-slate-100">
             <div className="flex justify-between items-start mb-6">
               <button onClick={() => setSelectedUser(null)}
@@ -404,10 +433,10 @@ export const GestionUsuarioPage = () => {
 
             <div className="text-center">
               <div className={`w-24 h-24 rounded-full mx-auto mb-4 flex items-center justify-center text-white font-bold text-3xl ${avatarBg(selectedUser.id)} shadow-sm`}>
-                {initials(selectedUser.nombre, selectedUser.email)}
+                {initials(selectedUser.nombre, selectedUser.apellido, selectedUser.email)}
               </div>
               <h3 className="text-xl font-bold text-slate-900">
-                {selectedUser.nombre ?? <span className="text-slate-400 font-normal italic">Sin nombre</span>}
+                {selectedUser.nombre || selectedUser.apellido ? `${selectedUser.nombre ?? ''} ${selectedUser.apellido ?? ''}`.trim() : <span className="text-slate-400 font-normal italic">Sin nombre</span>}
               </h3>
               <p className="text-sm text-slate-500 mb-2">{selectedUser.email}</p>
               <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${rolCfg(selectedUser.rol?.nombre).pill}`}>
@@ -455,7 +484,7 @@ export const GestionUsuarioPage = () => {
                 Editar Usuario
               </button>
               <button
-                onClick={() => handleDelete(selectedUser)}
+                onClick={() => handleDeleteClick(selectedUser)}
                 disabled={delLoading}
                 className="w-full flex items-center justify-center gap-2 py-3 border border-red-200 text-red-600 rounded-xl text-sm font-bold hover:bg-red-50 transition-colors disabled:opacity-50"
               >
@@ -478,6 +507,18 @@ export const GestionUsuarioPage = () => {
           onSaved={handleSaved}
         />
       )}
+
+      {/* MODAL confirmar eliminación */}
+      <Modal
+        open={deleteModal.open}
+        onClose={() => setDeleteModal({ open: false, userName: '', userEmail: '' })}
+        title="Eliminar Usuario"
+        message={`¿Estás seguro de que deseas eliminar a ${deleteModal.userName} (${deleteModal.userEmail})? Esta acción no se puede deshacer.`}
+        type="confirm"
+        onConfirm={handleDeleteConfirm}
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+      />
     </div>
   );
 };

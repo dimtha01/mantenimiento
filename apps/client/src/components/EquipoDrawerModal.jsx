@@ -20,21 +20,102 @@ const fmtDate = (iso) => iso ? new Date(iso).toLocaleDateString('es-VE') : '—'
 const FORM_EMPTY = {
   codigo: '', modelo: '', serial: '', factura: false,
   marcaId: '', tipoId: '', unidadNegocioId: '', propietarioId: '', parametroId: '',
-  horasMantenimientoPreventivo: '',
 };
 
 /* ─── SELECT helper ───────────────────────────────────────────── */
-const Field = ({ label, children }) => (
+const Field = ({ label, onAdd, children }) => (
   <div>
-    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-      {label}
-    </label>
+    <div className="flex items-center justify-between mb-1.5">
+      <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider">
+        {label}
+      </label>
+      {onAdd && (
+        <button
+          onClick={onAdd}
+          className="text-white bg-blue-600 hover:bg-blue-700 w-5 h-5 rounded-md flex items-center justify-center transition-colors shadow-sm"
+          title="Agregar nuevo"
+        >
+          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 4v16m8-8H4" />
+          </svg>
+        </button>
+      )}
+    </div>
     {children}
   </div>
 );
 
 const inputCls = 'w-full border border-slate-200 rounded-xl py-2.5 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300 bg-white';
-const selectCls = `${inputCls}`;
+const selectCls = `${inputCls} pr-8`;
+
+/* ─── MODAL PEQUEÑO PARA CATÁLOGOS ────────────────────────────── */
+const NuevoCatalogoModal = ({ visible, onClose, onSave, title, error }) => {
+  const [nombre, setNombre] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (visible) {
+      setNombre('');
+      setSaving(false);
+    }
+  }, [visible]);
+
+  if (!visible) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm shadow-xl"
+        onClick={onClose}
+      />
+      {/* Modal */}
+      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div className="px-5 py-4 border-b border-slate-100 flex justify-between items-center">
+          <h3 className="font-bold text-slate-800">{title}</h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div className="p-5">
+          {error && <p className="mb-3 text-xs text-red-600 bg-red-50 p-2 rounded-lg">{error}</p>}
+          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+            Nombre / Valor <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="text"
+            className={inputCls}
+            value={nombre}
+            onChange={(e) => setNombre(e.target.value)}
+            placeholder="Escriba aquí..."
+            autoFocus
+          />
+        </div>
+        <div className="px-5 py-4 bg-slate-50 border-t border-slate-100 flex gap-2 justify-end">
+          <button onClick={onClose} className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-200 rounded-xl transition-colors">
+            Cancelar
+          </button>
+          <button
+            disabled={!nombre.trim() || saving}
+            onClick={async () => {
+              setSaving(true);
+              await onSave(nombre.trim());
+              setSaving(false);
+            }}
+            className="px-5 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-xl transition-colors flex items-center gap-2"
+          >
+            {saving && (
+              <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+            )}
+            Guardar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 /* ─────────────────────────────────────────────────────────────── */
 export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
@@ -59,6 +140,9 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
 
+  /* modal creación en catálogo */
+  const [catalogModal, setCatalogModal] = useState({ visible: false, type: '', label: '', error: null });
+
   /* nuevo certificado */
   const [showCertForm, setShowCertForm] = useState(false);
   const [newCert, setNewCert] = useState({ nombre: '', fechaEmision: '', duracionMeses: '', vencimiento: '' });
@@ -74,6 +158,7 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
   const [newFalla, setNewFalla] = useState({ descripcion: '', severidad: 'MEDIA', fecha: new Date().toISOString().split('T')[0] });
   const [fallaSaving, setFallaSaving] = useState(false);
   const [estadoSaving, setEstadoSaving] = useState(false);
+  const [resolverFallaModal, setResolverFallaModal] = useState({ visible: false, fallaId: null, solucion: '' });
 
   /* ── cargar catálogos ──────────────────────────────── */
   const fetchCatalogos = useCallback(async () => {
@@ -129,6 +214,42 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
   };
 
   const handleChange = (field, value) => setForm((p) => ({ ...p, [field]: value }));
+
+  /* crear opción en catálogo dinámico */
+  const handleSaveCatalog = async (nombre) => {
+    try {
+      setCatalogModal(p => ({ ...p, error: null }));
+      const { type } = catalogModal; // marcas, tipos, ubicaciones, propietarios
+      const url = `/api/catalogos/${type}`;
+
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nombre })
+      });
+      const data = await res.json();
+
+      if (!data.ok) throw new Error(data.message);
+
+      // Actualizar catálogos y seleccionar el nuevo
+      const newItem = data.data; // { id: 123, nombre: '...' }
+
+      setCatalogos(prev => ({
+        ...prev,
+        [type]: [...prev[type], newItem].sort((a, b) => a.nombre?.localeCompare(b.nombre))
+      }));
+
+      // Seleccionarlo automáticamente según el tipo
+      if (type === 'marcas') handleChange('marcaId', newItem.id);
+      else if (type === 'tipos') handleChange('tipoId', newItem.id);
+      else if (type === 'ubicaciones') handleChange('unidadNegocioId', newItem.id);
+      else if (type === 'propietarios') handleChange('propietarioId', newItem.id);
+
+      setCatalogModal({ visible: false, type: '', label: '', error: null });
+    } catch (err) {
+      setCatalogModal(p => ({ ...p, error: err.message }));
+    }
+  };
 
   /* true si el form difiere del estado original (solo relevante en modo edición) */
   const hasChanges = isNew || JSON.stringify(
@@ -293,10 +414,10 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
       />
 
       {/* Panel */}
-      <div className={`fixed top-0 right-0 h-full w-[680px] bg-white shadow-2xl z-50 flex flex-col transition-transform duration-300 ease-out ${visible ? 'translate-x-0' : 'translate-x-full'}`}>
+      <div className={`fixed top-0 right-0 h-full w-[55%] sm:w-[720px] bg-white shadow-2xl z-50 flex flex-col transition-transform duration-300 ease-out ${visible ? 'translate-x-0' : 'translate-x-full'}`}>
 
         {/* ── HEADER ── */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-white shrink-0">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100 bg-white shrink-0">
           <div className="flex items-center gap-3">
             <span className="w-1 h-1 rounded-full bg-slate-300" />
             <span className="text-xs text-slate-400">{isNew ? 'Nuevo equipo' : 'Editar equipo'}</span>
@@ -336,7 +457,7 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
 
         {/* ── CARD resumen del equipo (solo en modo edición) ── */}
         {!isNew && (
-          <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/60 shrink-0">
+          <div className="px-5 py-3 border-b border-slate-100 bg-slate-50/60 shrink-0">
             <div className="flex items-center gap-4">
               <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-slate-700 to-slate-900 flex items-center justify-center text-white font-bold text-lg shadow-sm shrink-0">
                 {equipo.codigo?.charAt(0) ?? 'E'}
@@ -363,7 +484,7 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
             {(() => {
               const planes = equipo.planes ?? [];
               const horasEquipo = equipo.horasAcumuladas ?? 0;
-              const vencidos = planes.filter(p => horasEquipo >= (p.horasUltimaEjecucion ?? 0) + p.frecuenciaValor);
+              const vencidos = planes.filter(p => p.frecuenciaValor > 0 && horasEquipo >= (p.horasUltimaEjecucion ?? 0) + p.frecuenciaValor);
               const proximos = planes.filter(p => p.frecuenciaValor > 0 && horasEquipo < (p.horasUltimaEjecucion ?? 0) + p.frecuenciaValor && horasEquipo >= (p.horasUltimaEjecucion ?? 0) + p.frecuenciaValor - Math.max(2, Math.round(p.frecuenciaValor * 0.1)));
 
               if (vencidos.length > 0) return (
@@ -420,12 +541,12 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
         )}
 
         {/* ── TABS ── */}
-        <div className="flex border-b border-slate-100 px-6 gap-1 bg-white shrink-0 overflow-x-auto">
+        <div className="flex border-b border-slate-100 px-5 gap-1 bg-white shrink-0 overflow-x-auto">
           {TABS.filter(t => isNew ? t.id === 'general' : true).map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`relative py-3 px-4 text-sm font-semibold border-b-2 -mb-px transition-colors flex items-center gap-1.5 whitespace-nowrap ${activeTab === tab.id
+              className={`relative py-2 px-4 text-sm font-semibold border-b-2 -mb-px transition-colors flex items-center gap-1.5 whitespace-nowrap ${activeTab === tab.id
                 ? 'border-slate-900 text-slate-900'
                 : 'border-transparent text-slate-400 hover:text-slate-600'
                 }`}
@@ -441,11 +562,11 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
         </div>
 
         {/* ── CONTENIDO ── */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-hidden">
 
           {/* ════ Info General ════ */}
           {activeTab === 'general' && (
-            <div className="px-6 py-5 space-y-5">
+            <div className="px-6 py-4 space-y-3">
 
               {/* Código */}
               <Field label="Código del Equipo">
@@ -461,7 +582,7 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
                 {/* Modelo */}
                 <Field label="Modelo">
                   <input
-                    value={form.modelo}
+                    va  lue={form.modelo}
                     onChange={(e) => handleChange('modelo', e.target.value)}
                     placeholder="Ej: 320 GC"
                     className={inputCls}
@@ -481,28 +602,34 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
 
               <div className="grid grid-cols-2 gap-4">
                 {/* Marca */}
-                <Field label="Marca">
+                <Field
+                  label="Marca"
+                  onAdd={() => setCatalogModal({ visible: true, type: 'marcas', label: 'Nueva Marca', error: null })}
+                >
                   <select
                     value={form.marcaId}
                     onChange={(e) => handleChange('marcaId', e.target.value)}
                     className={selectCls}
                   >
-                    <option value="">Seleccionar marca</option>
-                    {catalogos.marcas.map((m) => (
+                    <option value="">Seleccionar marca...</option>
+                    {catalogos.marcas.map(m => (
                       <option key={m.id} value={m.id}>{m.nombre}</option>
                     ))}
                   </select>
                 </Field>
 
                 {/* Tipo */}
-                <Field label="Tipo de Equipo">
+                <Field
+                  label="Tipo de Equipo"
+                  onAdd={() => setCatalogModal({ visible: true, type: 'tipos', label: 'Nuevo Tipo', error: null })}
+                >
                   <select
                     value={form.tipoId}
                     onChange={(e) => handleChange('tipoId', e.target.value)}
                     className={selectCls}
                   >
-                    <option value="">Seleccionar tipo</option>
-                    {catalogos.tipos.map((t) => (
+                    <option value="">Seleccionar tipo...</option>
+                    {catalogos.tipos.map(t => (
                       <option key={t.id} value={t.id}>{t.nombre}</option>
                     ))}
                   </select>
@@ -511,28 +638,34 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
 
               <div className="grid grid-cols-2 gap-4">
                 {/* Ubicación */}
-                <Field label="Ubicación / Unidad de Negocio">
+                <Field
+                  label="Ubicación / Unidad"
+                  onAdd={() => setCatalogModal({ visible: true, type: 'ubicaciones', label: 'Nueva Ubicación', error: null })}
+                >
                   <select
                     value={form.unidadNegocioId}
                     onChange={(e) => handleChange('unidadNegocioId', e.target.value)}
                     className={selectCls}
                   >
-                    <option value="">Seleccionar ubicación</option>
-                    {catalogos.ubicaciones.map((u) => (
+                    <option value="">Seleccionar ubicación...</option>
+                    {catalogos.ubicaciones.map(u => (
                       <option key={u.id} value={u.id}>{u.nombre}</option>
                     ))}
                   </select>
                 </Field>
 
                 {/* Propietario */}
-                <Field label="Propietario">
+                <Field
+                  label="Propietario"
+                  onAdd={() => setCatalogModal({ visible: true, type: 'propietarios', label: 'Nuevo Propietario', error: null })}
+                >
                   <select
                     value={form.propietarioId}
                     onChange={(e) => handleChange('propietarioId', e.target.value)}
                     className={selectCls}
                   >
-                    <option value="">Seleccionar propietario</option>
-                    {catalogos.propietarios.map((p) => (
+                    <option value="">Seleccionar propietario...</option>
+                    {catalogos.propietarios.map(p => (
                       <option key={p.id} value={p.id}>{p.nombre}</option>
                     ))}
                   </select>
@@ -546,8 +679,8 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
                   onChange={(e) => handleChange('parametroId', e.target.value)}
                   className={selectCls}
                 >
-                  <option value="">Seleccionar parámetro</option>
-                  {catalogos.parametros.map((p) => (
+                  <option value="">Seleccionar unidad...</option>
+                  {catalogos.parametros.map(p => (
                     <option key={p.id} value={p.id}>{p.unidad}</option>
                   ))}
                 </select>
@@ -573,11 +706,11 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
 
           {/* ════ Horas de Uso ════ */}
           {activeTab === 'horas' && (
-            <div className="px-6 py-5 space-y-4">
+            <div className="px-6 py-4 space-y-3">
 
               {/* Horómetro actual */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="border border-slate-200 rounded-xl p-4 text-center bg-white">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="border border-slate-200 rounded-xl p-3 text-center bg-white">
                   <p className="text-4xl font-black text-blue-600">{equipo.horasAcumuladas ?? 0}</p>
                   <p className="text-xs text-slate-500 font-semibold mt-1">Horómetro Actual</p>
                   <p className="text-[10px] text-slate-400 mt-0.5">horas acumuladas de uso</p>
@@ -593,7 +726,7 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
 
               {/* Planes preventivos con Meta/Umbral */}
               {(equipo.planes ?? []).length > 0 ? (
-                <div className="space-y-3">
+                <div className="space-y-2">
                   <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Estado de Planes Preventivos</p>
                   {(equipo.planes ?? []).map(plan => {
                     const horasEquipo = equipo.horasAcumuladas ?? 0;
@@ -618,8 +751,8 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
                         nivelAlerta === 'precaucion' ? 'bg-yellow-500' : 'bg-emerald-500';
 
                     return (
-                      <div key={plan.id} className={`border rounded-xl p-4 ${borderColor}`}>
-                        <div className="flex items-center justify-between mb-2">
+                      <div key={plan.id} className={`border rounded-lg p-3 ${borderColor}`}>
+                        <div className="flex items-center justify-between mb-1.5">
                           <div className="flex items-center gap-2">
                             <p className="text-sm font-bold text-slate-800">{plan.descripcionTarea}</p>
                             {nivelAlerta !== 'normal' && (
@@ -632,7 +765,7 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
                         </div>
 
                         {/* Info Meta/Umbral */}
-                        <div className="grid grid-cols-4 gap-2 text-center text-xs mb-3">
+                        <div className="grid grid-cols-4 gap-1.5 text-center text-xs mb-2">
                           <div>
                             <p className="text-slate-400">Base</p>
                             <p className="font-bold text-slate-700">{base}h</p>
@@ -653,12 +786,12 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
 
                         {/* Barra de progreso */}
                         <div className="relative">
-                          <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                          <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
                             <div className={`h-full ${barColor} transition-all`} style={{ width: `${pct}%` }} />
                           </div>
                           {/* Marca del umbral */}
                           <div
-                            className="absolute top-0 w-0.5 h-2.5 bg-slate-800 opacity-40"
+                            className="absolute top-0 w-0.5 h-2 bg-slate-800 opacity-40"
                             style={{ left: `${Math.max(0, ((frecuencia - umbral) / frecuencia) * 100)}%` }}
                             title={`Umbral: aviso a las ${meta - umbral}h`}
                           />
@@ -676,15 +809,15 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
                   })}
                 </div>
               ) : (
-                <div className="text-center py-4 bg-slate-50 rounded-xl border border-slate-200">
+                <div className="text-center py-3 bg-slate-50 rounded-lg border border-slate-200">
                   <p className="text-xs text-slate-500">Sin planes preventivos configurados.</p>
                   <p className="text-[10px] text-slate-400 mt-1">Crea planes desde el módulo de Mantenimiento para visualizar metas aquí.</p>
                 </div>
               )}
 
               {/* Formulario para registrar horas */}
-              <div className="border border-slate-200 rounded-2xl p-5 bg-slate-50">
-                <p className="text-sm font-bold text-slate-900 mb-3">Registrar Horas de Uso</p>
+              <div className="border border-slate-200 rounded-2xl p-4 bg-slate-50">
+                <p className="text-sm font-bold text-slate-900 mb-2">Registrar Horas de Uso</p>
                 <div className="flex gap-3">
                   <input
                     type="number"
@@ -732,16 +865,16 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
 
           {/* ════ Certificaciones ════ */}
           {activeTab === 'certificaciones' && (
-            <div className="px-6 py-5 space-y-4">
+            <div className="px-6 py-4 space-y-3">
 
               {/* KPIs */}
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-3 gap-2">
                 {[
                   { label: 'Vigentes', val: certs.filter((c) => { const d = daysUntil(c.vencimiento); return d !== null && d >= 90; }).length, color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
                   { label: 'Por vencer', val: certs.filter((c) => { const d = daysUntil(c.vencimiento); return d !== null && d >= 0 && d < 90; }).length, color: 'bg-amber-50 text-amber-700 border-amber-200' },
                   { label: 'Vencidos', val: certs.filter((c) => { const d = daysUntil(c.vencimiento); return d !== null && d < 0; }).length, color: 'bg-red-50 text-red-700 border-red-200' },
                 ].map(({ label, val, color }) => (
-                  <div key={label} className={`border rounded-xl p-3 text-center ${color}`}>
+                  <div key={label} className={`border rounded-lg p-2 text-center ${color}`}>
                     <p className="text-2xl font-bold">{val}</p>
                     <p className="text-xs font-semibold mt-0.5">{label}</p>
                   </div>
@@ -750,7 +883,7 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
 
               {/* Lista certificaciones */}
               {certs.length === 0 ? (
-                <div className="py-10 text-center">
+                <div className="py-6 text-center">
                   <svg className="w-8 h-8 text-slate-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                   </svg>
@@ -759,7 +892,7 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
               ) : (
                 <div className="relative">
                   <div className="absolute left-[18px] top-2 bottom-2 w-0.5 bg-slate-200 z-0" />
-                  <div className="space-y-3 relative z-10">
+                  <div className="space-y-2 relative z-10">
                     {certs.map((cert) => {
                       const info = certBadge(cert.vencimiento);
                       const d = daysUntil(cert.vencimiento);
@@ -774,7 +907,7 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
                               </svg>
                             </div>
                           </div>
-                          <div className={`flex-1 border rounded-2xl p-4 mb-1 ${isExp ? 'border-red-200 bg-red-50/40' : isSoon ? 'border-amber-200 bg-amber-50/40' : 'border-slate-100 bg-white'}`}>
+                          <div className={`flex-1 border rounded-xl p-3 mb-1 ${isExp ? 'border-red-200 bg-red-50/40' : isSoon ? 'border-amber-200 bg-amber-50/40' : 'border-slate-100 bg-white'}`}>
                             <div className="flex items-start justify-between mb-2">
                               <div>
                                 <div className="flex items-center gap-2 mb-0.5">
@@ -819,7 +952,7 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
 
               {/* Formulario nuevo certificado */}
               {showCertForm ? (
-                <div className="border border-slate-200 rounded-2xl p-5 space-y-3 bg-slate-50">
+                <div className="border border-slate-200 rounded-2xl p-4 space-y-2 bg-slate-50">
                   <p className="text-sm font-bold text-slate-900">Nuevo Certificado</p>
                   {certError && (
                     <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-xl">
@@ -919,9 +1052,9 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
 
           {/* ════ Mantenimientos ════ */}
           {activeTab === 'mantenimientos' && (
-            <div className="px-6 py-5 space-y-4">
+            <div className="px-6 py-4 space-y-3">
               {mantenimientos.length === 0 ? (
-                <div className="py-12 text-center">
+                <div className="py-8 text-center">
                   <svg className="w-9 h-9 text-slate-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -930,7 +1063,7 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
                   <p className="text-xs text-slate-300 mt-1">Los mantenimientos se gestionan desde el módulo de Mantenimiento</p>
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {mantenimientos.map((m) => {
                     const tipoBg = {
                       PREVENTIVO: 'bg-blue-100 text-blue-700',
@@ -938,7 +1071,7 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
                       PREDICTIVO: 'bg-cyan-100 text-cyan-700',
                     }[m.tipo?.nombre] ?? 'bg-slate-100 text-slate-600';
                     return (
-                      <div key={m.id} className="border border-slate-100 rounded-2xl p-4 bg-white">
+                      <div key={m.id} className="border border-slate-100 rounded-xl p-3 bg-white">
                         <div className="flex items-start justify-between mb-2">
                           <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${tipoBg}`}>
                             {m.tipo?.nombre ?? 'SIN TIPO'}
@@ -985,9 +1118,9 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
 
           {/* ════ Planes Preventivos ════ */}
           {activeTab === 'planes' && (
-            <div className="px-6 py-5 space-y-4">
+            <div className="px-6 py-4 space-y-3">
               {planes.length === 0 ? (
-                <div className="py-12 text-center">
+                <div className="py-8 text-center">
                   <svg className="w-9 h-9 text-slate-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                   </svg>
@@ -995,9 +1128,9 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
                   <p className="text-xs text-slate-300 mt-1">Los planes se gestionan desde el módulo de Mantenimiento</p>
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {planes.map((plan) => (
-                    <div key={plan.id} className="border border-slate-100 rounded-2xl p-4 bg-white">
+                    <div key={plan.id} className="border border-slate-100 rounded-xl p-3 bg-white">
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-sm font-semibold text-slate-800">
                           Plan #{plan.id}
@@ -1028,9 +1161,9 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
 
           {/* ════ Fallas ════ */}
           {activeTab === 'fallas' && (
-            <div className="px-6 py-5 space-y-4">
+            <div className="px-6 py-4 space-y-3">
               {/* Estado operativo */}
-              <div className={`flex items-center justify-between p-4 rounded-xl border ${equipo.estadoOperativo === 'NO_OPERATIVO' ? 'bg-red-50 border-red-200' : 'bg-emerald-50 border-emerald-200'}`}>
+              <div className={`flex items-center justify-between p-3 rounded-xl border ${equipo.estadoOperativo === 'NO_OPERATIVO' ? 'bg-red-50 border-red-200' : 'bg-emerald-50 border-emerald-200'}`}>
                 <div className="flex items-center gap-3">
                   <div className={`w-3 h-3 rounded-full ${equipo.estadoOperativo === 'NO_OPERATIVO' ? 'bg-red-500 animate-pulse' : 'bg-emerald-500'}`} />
                   <div>
@@ -1053,14 +1186,14 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
               </div>
 
               {/* KPIs fallas */}
-              <div className="grid grid-cols-4 gap-3">
+              <div className="grid grid-cols-4 gap-2">
                 {[
                   { label: 'Total', val: fallas.length, color: 'bg-slate-50 text-slate-700 border-slate-200' },
                   { label: 'Abiertas', val: fallas.filter(f => f.estado === 'ABIERTA').length, color: 'bg-orange-50 text-orange-700 border-orange-200' },
                   { label: 'En Proceso', val: fallas.filter(f => f.estado === 'EN_PROCESO').length, color: 'bg-blue-50 text-blue-700 border-blue-200' },
                   { label: 'Resueltas', val: fallas.filter(f => f.estado === 'RESUELTA').length, color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
                 ].map(({ label, val, color }) => (
-                  <div key={label} className={`border rounded-xl p-3 text-center ${color}`}>
+                  <div key={label} className={`border rounded-lg p-2 text-center ${color}`}>
                     <p className="text-2xl font-bold">{val}</p>
                     <p className="text-xs font-semibold mt-0.5">{label}</p>
                   </div>
@@ -1069,7 +1202,7 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
 
               {/* Lista de fallas */}
               {fallas.length === 0 && !showFallaForm && (
-                <div className="py-10 text-center">
+                <div className="py-6 text-center">
                   <svg className="w-8 h-8 text-slate-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
@@ -1091,7 +1224,7 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
                 }[falla.estado] ?? 'bg-slate-100 text-slate-600';
 
                 return (
-                  <div key={falla.id} className={`border rounded-2xl p-4 ${falla.estado === 'RESUELTA' ? 'border-slate-100 bg-slate-50/40 opacity-70' : 'border-slate-200 bg-white'}`}>
+                  <div key={falla.id} className={`border rounded-xl p-3 ${falla.estado === 'RESUELTA' ? 'border-slate-100 bg-slate-50/40 opacity-70' : 'border-slate-200 bg-white'}`}>
                     <div className="flex items-start justify-between mb-2">
                       <div className="flex items-center gap-2">
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${sevCfg.bg}`}>{falla.severidad}</span>
@@ -1114,10 +1247,7 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
                           <button onClick={() => handleUpdateFalla(falla.id, { estado: 'EN_PROCESO' })} className="px-3 py-1.5 text-xs font-semibold bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors">En Proceso</button>
                         )}
                         <button
-                          onClick={() => {
-                            const solucion = prompt('Describe la solución aplicada:');
-                            if (solucion) handleUpdateFalla(falla.id, { estado: 'RESUELTA', solucion });
-                          }}
+                          onClick={() => setResolverFallaModal({ visible: true, fallaId: falla.id, solucion: '' })}
                           className="px-3 py-1.5 text-xs font-semibold bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 transition-colors"
                         >✓ Resolver</button>
                       </div>
@@ -1128,7 +1258,7 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
 
               {/* Formulario nueva falla */}
               {showFallaForm ? (
-                <div className="border border-orange-200 rounded-2xl p-5 space-y-3 bg-orange-50/40">
+                <div className="border border-orange-200 rounded-2xl p-4 space-y-2 bg-orange-50/40">
                   <p className="text-sm font-bold text-slate-900">Registrar Nueva Falla</p>
                   <Field label="Descripción de la falla">
                     <textarea
@@ -1153,7 +1283,7 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
                     </Field>
                   </div>
                   {(newFalla.severidad === 'ALTA' || newFalla.severidad === 'CRITICA') && (
-                    <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-xl">
+                    <div className="flex items-start gap-2 p-2 bg-red-50 border border-red-200 rounded-xl">
                       <svg className="w-4 h-4 text-red-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                       </svg>
@@ -1181,6 +1311,71 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
 
         </div>
       </div >
+
+      {/* Modal dinámico para catálogos */}
+      <NuevoCatalogoModal
+        visible={catalogModal.visible}
+        title={catalogModal.label}
+        error={catalogModal.error}
+        onClose={() => setCatalogModal({ visible: false, type: '', label: '', error: null })}
+        onSave={handleSaveCatalog}
+      />
+
+      {/* Modal para resolver falla */}
+      {resolverFallaModal.visible && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+            onClick={() => setResolverFallaModal({ visible: false, fallaId: null, solucion: '' })}
+          />
+          <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-100 flex justify-between items-center">
+              <h3 className="font-bold text-slate-800">Resolver Falla</h3>
+              <button
+                onClick={() => setResolverFallaModal({ visible: false, fallaId: null, solucion: '' })}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-5">
+              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+                Solución aplicada <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                className={`${inputCls} resize-none`}
+                rows={4}
+                value={resolverFallaModal.solucion}
+                onChange={(e) => setResolverFallaModal({ ...resolverFallaModal, solucion: e.target.value })}
+                placeholder="Describe la solución que se aplicó para resolver esta falla..."
+                autoFocus
+              />
+            </div>
+            <div className="px-5 py-4 bg-slate-50 border-t border-slate-100 flex gap-2 justify-end">
+              <button
+                onClick={() => setResolverFallaModal({ visible: false, fallaId: null, solucion: '' })}
+                className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-200 rounded-xl transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  if (resolverFallaModal.solucion.trim()) {
+                    handleUpdateFalla(resolverFallaModal.fallaId, { estado: 'RESUELTA', solucion: resolverFallaModal.solucion.trim() });
+                    setResolverFallaModal({ visible: false, fallaId: null, solucion: '' });
+                  }
+                }}
+                disabled={!resolverFallaModal.solucion.trim()}
+                className="px-5 py-2 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition-colors"
+              >
+                Resolver Falla
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };
