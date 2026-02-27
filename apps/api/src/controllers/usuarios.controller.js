@@ -16,6 +16,7 @@ export const getUsuarios = async (req, res) => {
                     ? {
                         OR: [
                             { nombre: { contains: search, mode: 'insensitive' } },
+                            { apellido: { contains: search, mode: 'insensitive' } },
                             { email: { contains: search, mode: 'insensitive' } },
                         ],
                     }
@@ -63,7 +64,7 @@ export const getUsuario = async (req, res) => {
 /* ── POST /api/usuarios ────────────────────────────────────────── */
 export const createUsuario = async (req, res) => {
     try {
-        const { nombre, email, password, rolId } = req.body;
+        const { nombre, apellido, email, password, rolId } = req.body;
 
         if (!email || !password || !rolId) {
             return res.status(400).json({ ok: false, message: 'email, password y rol son requeridos' });
@@ -74,7 +75,7 @@ export const createUsuario = async (req, res) => {
 
         const hashed = await bcrypt.hash(password, 10);
         const user = await prisma.usuario.create({
-            data: { nombre: nombre || null, email, password: hashed, rolId: Number(rolId) },
+            data: { nombre: nombre || null, apellido: apellido || null, email, password: hashed, rolId: Number(rolId) },
             include: INCLUDE,
         });
 
@@ -89,7 +90,7 @@ export const createUsuario = async (req, res) => {
 /* ── PUT /api/usuarios/:id ─────────────────────────────────────── */
 export const updateUsuario = async (req, res) => {
     try {
-        const { nombre, email, rolId } = req.body;
+        const { nombre, apellido, email, rolId } = req.body;
         const id = Number(req.params.id);
 
         // Verificar email único (si cambia)
@@ -102,6 +103,7 @@ export const updateUsuario = async (req, res) => {
             where: { id },
             data: {
                 ...(nombre !== undefined ? { nombre } : {}),
+                ...(apellido !== undefined ? { apellido } : {}),
                 ...(email !== undefined ? { email } : {}),
                 ...(rolId !== undefined ? { rolId: Number(rolId) } : {}),
             },

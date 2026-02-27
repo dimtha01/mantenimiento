@@ -132,14 +132,31 @@ export const createEquipo = async (req, res) => {
   try {
     const { codigo, modelo, serial, factura, marcaId, tipoId, unidadNegocioId, propietarioId, parametroId, horasMantenimientoPreventivo } = req.body;
 
+    // Helper function inside to safely get or create
+    const resolveId = async (modelName, value, columnName = 'nombre') => {
+      if (!value) return null;
+      if (!isNaN(Number(value))) return Number(value); // Es un ID existente
+      // Es un string nuevo, crearlo dinámicamente
+      const existing = await prisma[modelName].findFirst({ where: { [columnName]: { equals: value, mode: 'insensitive' } } });
+      if (existing) return existing.id;
+      const created = await prisma[modelName].create({ data: { [columnName]: value } });
+      return created.id;
+    };
+
+    const marca_id = await resolveId('marca', marcaId);
+    const tipo_id = await resolveId('tipoEquipo', tipoId);
+    const ubic_id = await resolveId('ubicacionActivo', unidadNegocioId);
+    const prop_id = await resolveId('propietario', propietarioId);
+    const param_id = toId(parametroId);
+
     const data = {
       codigo, modelo, serial,
       factura: factura ?? false,
-      marcaId: toId(marcaId),
-      tipoId: toId(tipoId),
-      unidadNegocioId: toId(unidadNegocioId),
-      propietarioId: toId(propietarioId),
-      parametroId: toId(parametroId),
+      marcaId: marca_id,
+      tipoId: tipo_id,
+      unidadNegocioId: ubic_id,
+      propietarioId: prop_id,
+      parametroId: param_id,
       horasMantenimientoPreventivo: horasMantenimientoPreventivo ? Number(horasMantenimientoPreventivo) : 0,
     };
 
@@ -165,14 +182,30 @@ export const updateEquipo = async (req, res) => {
   try {
     const { codigo, modelo, serial, factura, marcaId, tipoId, unidadNegocioId, propietarioId, parametroId, horasMantenimientoPreventivo, estadoOperativo } = req.body;
 
+    const resolveId = async (modelName, value, columnName = 'nombre') => {
+      if (!value) return undefined;
+      if (!isNaN(Number(value))) return Number(value); // Es un ID existente
+      // Es un string nuevo, crearlo dinámicamente
+      const existing = await prisma[modelName].findFirst({ where: { [columnName]: { equals: value, mode: 'insensitive' } } });
+      if (existing) return existing.id;
+      const created = await prisma[modelName].create({ data: { [columnName]: value } });
+      return created.id;
+    };
+
+    const marca_id = await resolveId('marca', marcaId);
+    const tipo_id = await resolveId('tipoEquipo', tipoId);
+    const ubic_id = await resolveId('ubicacionActivo', unidadNegocioId);
+    const prop_id = await resolveId('propietario', propietarioId);
+    const param_id = toId(parametroId);
+
     const data = {
       codigo, modelo, serial,
       factura: factura ?? false,
-      marcaId: toId(marcaId),
-      tipoId: toId(tipoId),
-      unidadNegocioId: toId(unidadNegocioId),
-      propietarioId: toId(propietarioId),
-      parametroId: toId(parametroId),
+      marcaId: marca_id,
+      tipoId: tipo_id,
+      unidadNegocioId: ubic_id,
+      propietarioId: prop_id,
+      parametroId: param_id,
       ...(horasMantenimientoPreventivo !== undefined ? { horasMantenimientoPreventivo: Number(horasMantenimientoPreventivo) } : {}),
       ...(estadoOperativo ? { estadoOperativo } : {}),
     };

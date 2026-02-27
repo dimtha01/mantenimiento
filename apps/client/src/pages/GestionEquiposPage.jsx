@@ -41,6 +41,7 @@ const PAGE_SIZE = 10;
 // ─── Paginador compacto ────────────────────────────────────────
 const Pagination = ({ page, totalPages, total, onPrev, onNext, onGoto, pageSize }) => {
   if (totalPages <= 1) return null;
+  if (totalPages <= 1) return null;
 
   const pages = [];
   const delta = 2;
@@ -57,8 +58,8 @@ const Pagination = ({ page, totalPages, total, onPrev, onNext, onGoto, pageSize 
   const to = Math.min(page * pageSize, total);
 
   return (
-    <div className="flex items-center justify-between px-6 py-3 border-t border-slate-100 bg-slate-50/60">
-      <p className="text-xs text-slate-400">
+    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 sm:px-6 py-3 border-t border-slate-100 bg-slate-50/60">
+      <p className="text-xs text-slate-400 text-center sm:text-left">
         Mostrando <span className="font-semibold text-slate-600">{from}–{to}</span> de{' '}
         <span className="font-semibold text-slate-600">{total}</span> equipos
       </p>
@@ -104,6 +105,7 @@ const Pagination = ({ page, totalPages, total, onPrev, onNext, onGoto, pageSize 
 
 // ─── Page ─────────────────────────────────────────────────────
 export const GestionEquiposPage = () => {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('Todos');
   const [search, setSearch] = useState('');
   const [equipos, setEquipos] = useState([]);
@@ -232,44 +234,34 @@ export const GestionEquiposPage = () => {
     }
   };
 
-  // Generar notificaciones de alertas de horas
-  const horasNotificaciones = alertasHoras.map((a, i) => ({
-    id: `alerta-${a.id}-${i}`,
-    leida: false,
-    titulo: a.nivelAlerta === 'critico' ? `${a.codigo}: ${a.descripcionTarea} - Requerido` : `${a.codigo}: ${a.descripcionTarea} - Próximo`,
-    descripcion: a.nivelAlerta === 'critico'
-      ? `Tarea "${a.descripcionTarea}" vencida. Cada ${a.frecuenciaValor}h. Requiere ejecución inmediata.`
-      : `Quedan ${a.horasRestantes}h para "${a.descripcionTarea}". Frecuencia: cada ${a.frecuenciaValor}h.`,
-    tiempo: a.fechaUltimaEjecucion ? new Date(a.fechaUltimaEjecucion).toLocaleDateString('es-VE') : 'Sin registro',
-    color: a.nivelAlerta === 'critico' ? 'red' : 'amber',
-  }));
-
   return (
     <div className="flex h-screen overflow-hidden bg-[#F5F6FA]">
-      <Sidebar />
+      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       <main className="flex-1 flex flex-col overflow-hidden">
         <Header
           title="Gestión de Equipos"
           subtitle="Monitorea y administra todos los activos del sistema"
           showSearch={false}
-          notifications={horasNotificaciones}
+          onMenuClick={() => setSidebarOpen(!sidebarOpen)}
           onNotifClick={(n) => {
-            const alerta = alertasHoras.find(a => n.id.includes(`alerta-${a.id}`));
-            if (alerta) handleSelectEquipo(alerta);
+            if (n.equipoId) {
+              const alertaEq = equipos.find(e => e.id === n.equipoId);
+              if (alertaEq) handleSelectEquipo(alertaEq);
+              else window.location.href = `/mantenimiento?equipo=${n.equipoId}`;
+            }
           }}
-          onNotifMarkAll={() => { }}
         />
 
         <div className="flex-1 overflow-hidden flex gap-0">
 
           {/* ── IZQUIERDA: Tabla ──────────────────────────── */}
-          <div className="flex-1 overflow-y-auto p-6">
+          <div className="flex-1 overflow-y-auto p-4 md:p-6">
 
             {/* Alerta global de horas */}
             {alertasHoras.length > 0 && (
               <div className="mb-4 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-4">
-                <div className="flex items-center gap-3 mb-2">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3 mb-2">
                   <div className="w-8 h-8 bg-amber-100 rounded-xl flex items-center justify-center text-amber-600">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                   </div>
@@ -351,124 +343,115 @@ export const GestionEquiposPage = () => {
               </div>
 
               {/* Cabecera de tabla */}
-              <div className="grid grid-cols-12 px-6 py-2.5 bg-slate-50 border-b border-slate-100 text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                <div className="col-span-3">Equipo</div>
-                <div className="col-span-2">Marca / Tipo</div>
-                <div className="col-span-2">Estado</div>
-                <div className="col-span-2">Horas Uso</div>
-                <div className="col-span-2">Último Mant.</div>
-                <div className="col-span-1">Fallas</div>
-              </div>
+              <div className="overflow-x-auto flex-1 flex flex-col">
+                <table className="w-full table-fixed min-w-[800px] text-left">
+                  <thead className="bg-slate-50 border-b border-slate-100 text-[10px] font-semibold text-slate-400 uppercase tracking-wider sticky top-0 z-10">
+                    <tr>
+                      <th className="w-1/4 px-6 py-3">Equipo</th>
+                      <th className="w-1/6 px-6 py-3">Marca / Tipo</th>
+                      <th className="w-1/6 px-6 py-3">Estado Operativo</th>
+                      <th className="w-1/6 px-6 py-3">Horas Uso</th>
+                      <th className="w-1/6 px-6 py-3">Último Mant.</th>
+                      <th className="w-1/12 px-6 py-3">Fallas</th>
+                    </tr>
+                  </thead>
 
-              {/* Loading / Error */}
-              {loading && (
-                <div className="py-16 text-center text-sm text-slate-400 animate-pulse">Cargando equipos...</div>
-              )}
-              {!loading && error && (
-                <div className="py-16 text-center">
-                  <p className="text-sm text-red-400">{error}</p>
-                  <button onClick={() => fetchEquipos(page)} className="mt-2 text-xs text-blue-500 underline">Reintentar</button>
-                </div>
-              )}
+                  <tbody className="divide-y divide-slate-50 relative">
+                    {loading && (
+                      <tr>
+                        <td colSpan={6} className="py-16 text-center text-sm text-slate-400 animate-pulse">Cargando equipos...</td>
+                      </tr>
+                    )}
+                    {!loading && error && (
+                      <tr>
+                        <td colSpan={6} className="py-16 text-center">
+                          <p className="text-sm text-red-400">{error}</p>
+                          <button onClick={() => fetchEquipos(page)} className="mt-2 text-xs text-blue-500 underline">Reintentar</button>
+                        </td>
+                      </tr>
+                    )}
+                    {!loading && !error && filtered.length === 0 && (
+                      <tr>
+                        <td colSpan={6} className="py-16 text-center">
+                          <svg className="w-10 h-10 text-slate-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 10V7" />
+                          </svg>
+                          <p className="text-sm text-slate-400 font-medium">No se encontraron equipos</p>
+                        </td>
+                      </tr>
+                    )}
+                    {!loading && !error && filtered.map((eq) => {
+                      const ultimoMant = eq.mantenimientos?.[0] ?? null;
+                      const alertaEquipo = alertasHoras.find(a => a.equipoId === eq.id);
+                      const fallasAbiertas = eq.fallas?.filter(f => f.estado !== 'RESUELTA')?.length ?? 0;
+                      const isNoOperativo = eq.estadoOperativo === 'NO_OPERATIVO';
 
-              {/* Filas */}
-              {!loading && !error && (
-                <div className="divide-y divide-slate-50 flex-1">
-                  {filtered.map((eq) => {
-                    const ultimoMant = eq.mantenimientos?.[0] ?? null;
-                    const alertaEquipo = alertasHoras.find(a => a.equipoId === eq.id);
-                    const fallasAbiertas = eq.fallas?.filter(f => f.estado !== 'RESUELTA')?.length ?? 0;
-                    const isNoOperativo = eq.estadoOperativo === 'NO_OPERATIVO';
-
-                    return (
-                      <div
-                        key={eq.id}
-                        className={`grid grid-cols-12 px-6 py-3.5 hover:bg-blue-50/40 transition-colors items-center group cursor-pointer
-                          ${isNoOperativo ? 'bg-red-50/30' : ''}`}
-                        onClick={() => handleSelectEquipo(eq)}
-                      >
-                        {/* Equipo */}
-                        <div className="col-span-3">
-                          <p className="text-sm font-semibold text-slate-800 group-hover:text-blue-600 truncate">{eq.codigo}</p>
-                          <p className="text-xs text-slate-400 font-mono">{eq.serial}</p>
-                          <p className="text-xs text-slate-400 font-mono">Mod: {eq.modelo}</p>
-                        </div>
-
-                        {/* Marca / Tipo */}
-                        <div className="col-span-2">
-                          <p className="text-xs font-semibold text-slate-700">{eq.marca?.nombre ?? '—'}</p>
-                          <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-medium">
-                            {eq.tipo?.nombre ?? '—'}
-                          </span>
-                        </div>
-
-                        {/* Estado Operativo */}
-                        <div className="col-span-2">
-                          <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full inline-flex items-center gap-1 ${isNoOperativo ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'
-                            }`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${isNoOperativo ? 'bg-red-500' : 'bg-emerald-500'}`} />
-                            {isNoOperativo ? 'No Operativo' : 'Operativo'}
-                          </span>
-                          <p className="text-xs text-slate-400 truncate mt-0.5">{eq.ubicacion?.nombre ?? '—'}</p>
-                        </div>
-
-                        {/* Horas de Uso */}
-                        <div className="col-span-2 flex flex-col items-start gap-1">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-xs font-bold text-slate-700 font-mono">
-                              {eq.horasAcumuladas ?? 0}h
+                      return (
+                        <tr
+                          key={eq.id}
+                          className={`hover:bg-blue-50/40 transition-colors group cursor-pointer ${isNoOperativo ? 'bg-red-50/30' : ''}`}
+                          onClick={() => handleSelectEquipo(eq)}
+                        >
+                          <td className="px-6 py-4 truncate">
+                            <p className="text-sm font-semibold text-slate-800 group-hover:text-blue-600 truncate">{eq.codigo}</p>
+                            <p className="text-xs text-slate-400 font-mono truncate">{eq.serial}</p>
+                            <p className="text-xs text-slate-400 font-mono truncate">Mod: {eq.modelo}</p>
+                          </td>
+                          <td className="px-6 py-4 truncate">
+                            <p className="text-xs font-semibold text-slate-700 truncate">{eq.marca?.nombre ?? '—'}</p>
+                            <span className="inline-block mt-0.5 text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-medium truncate max-w-full">
+                              {eq.tipo?.nombre ?? '—'}
                             </span>
-                            <span className="text-[10px] text-slate-400">totales</span>
-                          </div>
-                          {alertaEquipo && (
-                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 ${alertaEquipo.nivelAlerta === 'critico' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
-                              {alertaEquipo.nivelAlerta === 'critico' ? 'VENCIDO' : 'ALERTA'}
+                          </td>
+                          <td className="px-6 py-4 truncate">
+                            <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full inline-flex items-center gap-1 ${isNoOperativo ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                              <span className={`w-1.5 h-1.5 rounded-full ${isNoOperativo ? 'bg-red-500' : 'bg-emerald-500'}`} />
+                              {isNoOperativo ? 'No Operativo' : 'Operativo'}
                             </span>
-                          )}
-                        </div>
-
-                        {/* Último mantenimiento */}
-                        <div className="col-span-2">
-                          {ultimoMant ? (
-                            <>
-                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${otBadgeClass(ultimoMant.tipo?.nombre)}`}>
-                                {ultimoMant.tipo?.nombre}
+                            <p className="text-xs text-slate-400 truncate mt-1">{eq.ubicacion?.nombre ?? '—'}</p>
+                          </td>
+                          <td className="px-6 py-4 truncate">
+                            <div className="flex flex-col items-start gap-1">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-bold text-slate-700 font-mono text-right w-12">{eq.horasAcumuladas ?? 0}h</span>
+                                <span className="text-[10px] text-slate-400">tot</span>
+                              </div>
+                              {alertaEquipo && (
+                                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded inline-flex items-center gap-1 ${alertaEquipo.nivelAlerta === 'critico' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                                  {alertaEquipo.nivelAlerta === 'critico' ? 'VENCIDO' : 'ALERTA'}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 truncate">
+                            {ultimoMant ? (
+                              <>
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full inline-block truncate max-w-full ${otBadgeClass(ultimoMant.tipo?.nombre)}`}>
+                                  {ultimoMant.tipo?.nombre}
+                                </span>
+                                <p className="text-xs text-slate-500 mt-1 whitespace-nowrap">
+                                  {new Date(ultimoMant.fechaServicio).toLocaleDateString('es-VE')}
+                                </p>
+                              </>
+                            ) : (
+                              <p className="text-xs text-slate-300 italic">Sin registros</p>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 truncate">
+                            {fallasAbiertas > 0 ? (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 whitespace-nowrap">
+                                {fallasAbiertas} alerta{fallasAbiertas > 1 ? 's' : ''}
                               </span>
-                              <p className="text-xs text-slate-500 mt-0.5">
-                                {new Date(ultimoMant.fechaServicio).toLocaleDateString('es-VE')}
-                              </p>
-                            </>
-                          ) : (
-                            <p className="text-xs text-slate-300 italic">Sin registros</p>
-                          )}
-                        </div>
-
-                        {/* Fallas */}
-                        <div className="col-span-1">
-                          {fallasAbiertas > 0 ? (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">
-                              {fallasAbiertas} abierta{fallasAbiertas > 1 ? 's' : ''}
-                            </span>
-                          ) : (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-400">
-                              0
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-
-                  {filtered.length === 0 && (
-                    <div className="py-16 text-center">
-                      <svg className="w-10 h-10 text-slate-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 10V7" />
-                      </svg>
-                      <p className="text-sm text-slate-400 font-medium">No se encontraron equipos</p>
-                    </div>
-                  )}
-                </div>
-              )}
+                            ) : (
+                              <span className="text-slate-300 font-bold">—</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
 
               {/* ── Paginación ── */}
               <Pagination

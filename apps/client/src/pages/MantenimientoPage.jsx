@@ -2,6 +2,9 @@ import { useState, useEffect, useCallback } from 'react';
 import { Sidebar } from '../components/Sidebar';
 import { Header } from '../components/Header';
 import { RegistroDrawer } from '../components/RegistroDrawer';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
 
 /* ─── Helpers de badge ─────────────────────────────────────────── */
 const TIPO_CFG = {
@@ -21,28 +24,50 @@ const FILTER_TABS = [
 ];
 
 /* ─── Formulario registro de mantenimiento ──────────────────────── */
-const RegistroForm = ({ equipoId, tipos, unidad, planes = [], onGuardado, onCancel }) => {
-  const [form, setForm] = useState({
-    tipoId: tipos[0]?.id ?? '',
-    fechaServicio: new Date().toISOString().split('T')[0],
-    lecturaActual: '',
-    observaciones: '',
-    costoManoObra: '',
-    costoServicios: '',
-    costoRepuestos: '',
-    planId: '',
+const RegistroForm = ({ equipoId, tipos, unidad, planes = [], initialPlanId, horometroAnterior, onGuardado, onCancel }) => {
+  const defaultTipoId = tipos.find(t => t.nombre === 'PREVENTIVO')?.id ?? tipos[0]?.id;
+
+  const schema = z.object({
+    tipoId: z.string().min(1, "El Tipo es obligatorio."),
+    fechaServicio: z.string().min(1, "La Fecha es obligatoria.")
+      .refine(val => val <= new Date().toISOString().split('T')[0], "La fecha no puede ser en el futuro."),
+    lecturaActual: z.string().min(1, "La lectura actual es obligatoria.")
+      .refine(val => horometroAnterior === undefined || Number(val) >= horometroAnterior, `El horómetro no puede ser menor al actual (${horometroAnterior}).`),
+    observaciones: z.string().optional(),
+    costoManoObra: z.string().optional(),
+    costoServicios: z.string().optional(),
+    costoRepuestos: z.string().optional(),
+    planId: z.string().optional(),
   });
+
+  const { register, handleSubmit, watch, formState: { errors } } = useForm({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      tipoId: initialPlanId ? String(defaultTipoId ?? '') : String(tipos[0]?.id ?? ''),
+      fechaServicio: new Date().toISOString().split('T')[0],
+      lecturaActual: '',
+      observaciones: '',
+      costoManoObra: '',
+      costoServicios: '',
+      costoRepuestos: '',
+      planId: initialPlanId ? String(initialPlanId) : '',
+    }
+  });
+
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState(null);
 
-  const esPreventivo = tipos.find(t => t.id === form.tipoId)?.nombre === 'PREVENTIVO';
-  const calculatedTotal = (Number(form.costoManoObra) || 0) + (Number(form.costoServicios) || 0) + (Number(form.costoRepuestos) || 0);
+  const watchTipoId = watch("tipoId");
+  const esPreventivo = tipos.find(t => String(t.id) === watchTipoId)?.nombre === 'PREVENTIVO';
 
-  const handleSubmit = async () => {
-    if (!form.tipoId || !form.fechaServicio || form.lecturaActual === '') {
-      setErr('Tipo, fecha y lectura son obligatorios.');
-      return;
-    }
+  const watchCostoManoObra = watch("costoManoObra");
+  const watchCostoServicios = watch("costoServicios");
+  const watchCostoRepuestos = watch("costoRepuestos");
+  const calculatedTotal = (Number(watchCostoManoObra) || 0) + (Number(watchCostoServicios) || 0) + (Number(watchCostoRepuestos) || 0);
+
+  const watchPlanId = watch("planId");
+
+  const onSubmit = async (data) => {
     setSaving(true);
     setErr(null);
     try {
@@ -50,13 +75,14 @@ const RegistroForm = ({ equipoId, tipos, unidad, planes = [], onGuardado, onCanc
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ...form,
+          ...data,
           equipoId,
-          lecturaActual: Number(form.lecturaActual),
-          costoManoObra: form.costoManoObra !== '' ? Number(form.costoManoObra) : null,
-          costoServicios: form.costoServicios !== '' ? Number(form.costoServicios) : null,
-          costoRepuestos: form.costoRepuestos !== '' ? Number(form.costoRepuestos) : null,
-          planId: form.planId ? Number(form.planId) : undefined,
+          tipoId: Number(data.tipoId),
+          lecturaActual: Number(data.lecturaActual),
+          costoManoObra: data.costoManoObra !== '' ? Number(data.costoManoObra) : null,
+          costoServicios: data.costoServicios !== '' ? Number(data.costoServicios) : null,
+          costoRepuestos: data.costoRepuestos !== '' ? Number(data.costoRepuestos) : null,
+          planId: data.planId ? Number(data.planId) : undefined,
         }),
       });
       const json = await res.json();
@@ -72,43 +98,46 @@ const RegistroForm = ({ equipoId, tipos, unidad, planes = [], onGuardado, onCanc
   const inputCls = 'w-full border border-slate-200 rounded-xl py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300 bg-white';
 
   return (
-    <div className="border border-slate-200 rounded-2xl p-5 space-y-4 bg-slate-50">
+    <form onSubmit={handleSubmit(onSubmit)} className="border border-slate-200 rounded-2xl p-5 space-y-4 bg-slate-50">
       <p className="text-sm font-bold text-slate-900">Nuevo Registro de Mantenimiento</p>
       {err && <p className="text-xs text-red-500">{err}</p>}
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Tipo</label>
-          <select value={form.tipoId} onChange={e => setForm(p => ({ ...p, tipoId: e.target.value }))} className={inputCls}>
+          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Tipo <span className="text-red-500">*</span></label>
+          <select {...register("tipoId")} className={`${inputCls} ${errors.tipoId ? 'border-red-500 bg-red-50' : ''}`}>
             {tipos.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
           </select>
+          {errors.tipoId && <p className="text-[10px] text-red-500 mt-0.5">{errors.tipoId.message}</p>}
         </div>
         <div>
-          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Fecha de Servicio</label>
-          <input type="date" value={form.fechaServicio} onChange={e => setForm(p => ({ ...p, fechaServicio: e.target.value }))} className={inputCls} />
+          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Fecha de Servicio <span className="text-red-500">*</span></label>
+          <input type="date" max={new Date().toISOString().split('T')[0]} {...register("fechaServicio")} className={`${inputCls} ${errors.fechaServicio ? 'border-red-500 bg-red-50' : ''}`} />
+          {errors.fechaServicio && <p className="text-[10px] text-red-500 mt-0.5">{errors.fechaServicio.message}</p>}
         </div>
       </div>
 
       <div>
-        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Lectura Actual {unidad ? `(${unidad})` : ''}</label>
-        <input type="number" min="0" value={form.lecturaActual} onChange={e => setForm(p => ({ ...p, lecturaActual: e.target.value }))} placeholder="Ej: 1250" className={inputCls} />
+        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Lectura Actual {unidad ? `(${unidad})` : ''} <span className="text-red-500">*</span></label>
+        <input type="number" min={horometroAnterior ?? 0} {...register("lecturaActual")} placeholder="Ej: 1250" className={`${inputCls} ${errors.lecturaActual ? 'border-red-500 bg-red-50' : ''}`} />
+        {errors.lecturaActual && <p className="text-[10px] text-red-500 mt-0.5">{errors.lecturaActual.message}</p>}
       </div>
 
       {/* Costos separados */}
       <div>
         <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Desglose de Costos</p>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div>
             <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Mano de Obra</label>
-            <input type="number" min="0" step="0.01" value={form.costoManoObra} onChange={e => setForm(p => ({ ...p, costoManoObra: e.target.value }))} placeholder="$0.00" className={inputCls} />
+            <input type="number" min="0" step="0.01" {...register("costoManoObra")} placeholder="$0.00" className={inputCls} />
           </div>
           <div>
             <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Servicios</label>
-            <input type="number" min="0" step="0.01" value={form.costoServicios} onChange={e => setForm(p => ({ ...p, costoServicios: e.target.value }))} placeholder="$0.00" className={inputCls} />
+            <input type="number" min="0" step="0.01" {...register("costoServicios")} placeholder="$0.00" className={inputCls} />
           </div>
           <div>
             <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Repuestos</label>
-            <input type="number" min="0" step="0.01" value={form.costoRepuestos} onChange={e => setForm(p => ({ ...p, costoRepuestos: e.target.value }))} placeholder="$0.00" className={inputCls} />
+            <input type="number" min="0" step="0.01" {...register("costoRepuestos")} placeholder="$0.00" className={inputCls} />
           </div>
         </div>
         {calculatedTotal > 0 && (
@@ -121,14 +150,14 @@ const RegistroForm = ({ equipoId, tipos, unidad, planes = [], onGuardado, onCanc
 
       <div>
         <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Observaciones</label>
-        <textarea value={form.observaciones} onChange={e => setForm(p => ({ ...p, observaciones: e.target.value }))} rows={2} className={`${inputCls} resize-none`} placeholder="Detalles del servicio..." />
+        <textarea {...register("observaciones")} rows={2} className={`${inputCls} resize-none`} placeholder="Detalles del servicio..." />
       </div>
 
       {/* Selector de plan preventivo */}
       {esPreventivo && planes.length > 0 && (
         <div>
           <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Plan Preventivo Asociado</label>
-          <select value={form.planId} onChange={e => setForm(p => ({ ...p, planId: e.target.value }))} className={inputCls}>
+          <select {...register("planId")} className={`${inputCls} ${errors.planId ? 'border-red-500 bg-red-50' : ''}`}>
             <option value="">— Seleccionar plan —</option>
             {planes.map(p => (
               <option key={p.id} value={p.id}>{p.descripcionTarea} (c/{p.frecuenciaValor}h)</option>
@@ -139,53 +168,69 @@ const RegistroForm = ({ equipoId, tipos, unidad, planes = [], onGuardado, onCanc
       )}
 
       {/* Nota */}
-      {esPreventivo && form.planId && (
+      {esPreventivo && watchPlanId && (
         <div className="flex items-start gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
           <svg className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
-          <p className="text-xs text-emerald-700">
-            <span className="font-bold">Preventivo:</span> El plan seleccionado se marcará como ejecutado.
+          <p className="text-[11px] text-emerald-700 leading-tight">
+            Se actualizará la <strong>fecha base y horas</strong> del plan preventivo con la fecha y lectura indicadas arriba para reiniciar el conteo.
           </p>
         </div>
       )}
 
-      <div className="flex gap-2 pt-1">
-        <button onClick={handleSubmit} disabled={saving} className="flex-1 py-2 bg-slate-900 text-white text-sm font-bold rounded-xl hover:bg-slate-800 transition-colors disabled:opacity-60">
-          {saving ? 'Guardando...' : 'Guardar Registro'}
-        </button>
-        <button onClick={onCancel} className="px-4 py-2 border border-slate-200 text-slate-500 text-sm font-semibold rounded-xl hover:bg-slate-50 transition-colors">
+      {/* Botones */}
+      <div className="flex justify-end gap-2 pt-2">
+        <button type="button" onClick={onCancel} className="px-4 py-2 text-sm text-slate-500 hover:bg-slate-100 rounded-xl font-medium transition-colors">
           Cancelar
         </button>
+        <button
+          type="submit"
+          disabled={saving}
+          className="px-5 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-colors disabled:opacity-50 flex items-center gap-2 shadow-sm shadow-blue-600/20"
+        >
+          {saving && <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>}
+          {saving ? 'Guardando...' : 'Guardar Registro'}
+        </button>
       </div>
-    </div>
+    </form>
   );
 };
 
 /* ─── Formulario de plan preventivo ────────────────────────────── */
 const PlanForm = ({ equipoId, plan, unidad, onGuardado, onCancel }) => {
   const isEdit = !!plan;
-  const [form, setForm] = useState({
-    descripcionTarea: plan?.descripcionTarea ?? '',
-    frecuenciaValor: plan?.frecuenciaValor ?? '',
-    costoEstimado: plan?.costoEstimado ?? '',
+
+  const schema = z.object({
+    descripcionTarea: z.string().min(1, "La descripción es obligatoria."),
+    frecuenciaValor: z.string().min(1, "Frecuencia obligatoria.").refine(val => Number(val) > 0, "Debe ser mayor a 0"),
+    costoEstimado: z.string().optional(),
   });
+
+  const { register, handleSubmit, formState: { errors } } = useForm({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      descripcionTarea: plan?.descripcionTarea ?? '',
+      frecuenciaValor: plan?.frecuenciaValor ? String(plan.frecuenciaValor) : '',
+      costoEstimado: plan?.costoEstimado ? String(plan.costoEstimado) : '',
+    }
+  });
+
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState(null);
 
-  const handleSubmit = async () => {
-    if (!form.descripcionTarea || form.frecuenciaValor === '') {
-      setErr('Descripción y frecuencia son obligatorias.');
-      return;
-    }
+  const onSubmit = async (data) => {
     setSaving(true);
     setErr(null);
     try {
       const url = isEdit ? `/api/mantenimientos/planes/${plan.id}` : '/api/mantenimientos/planes';
       const method = isEdit ? 'PUT' : 'POST';
-      const body = isEdit
-        ? { descripcionTarea: form.descripcionTarea, frecuenciaValor: Number(form.frecuenciaValor), costoEstimado: form.costoEstimado !== '' ? Number(form.costoEstimado) : null }
-        : { equipoId, descripcionTarea: form.descripcionTarea, frecuenciaValor: Number(form.frecuenciaValor), costoEstimado: form.costoEstimado !== '' ? Number(form.costoEstimado) : null };
+      const body = {
+        equipoId: isEdit ? undefined : equipoId,
+        descripcionTarea: data.descripcionTarea,
+        frecuenciaValor: Number(data.frecuenciaValor),
+        costoEstimado: data.costoEstimado !== '' ? Number(data.costoEstimado) : null
+      };
 
       const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const json = await res.json();
@@ -201,34 +246,36 @@ const PlanForm = ({ equipoId, plan, unidad, onGuardado, onCancel }) => {
   const inputCls = 'w-full border border-slate-200 rounded-xl py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300 bg-white';
 
   return (
-    <div className="border border-blue-200 rounded-2xl p-5 space-y-4 bg-blue-50/40">
+    <form onSubmit={handleSubmit(onSubmit)} className="border border-blue-200 rounded-2xl p-5 space-y-4 bg-blue-50/40">
       <p className="text-sm font-bold text-slate-900">{isEdit ? 'Editar Plan Preventivo' : 'Nuevo Plan Preventivo'}</p>
       {err && <p className="text-xs text-red-500">{err}</p>}
 
       <div>
         <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Tarea / Descripción</label>
-        <textarea value={form.descripcionTarea} onChange={e => setForm(p => ({ ...p, descripcionTarea: e.target.value }))} rows={2} className={`${inputCls} resize-none`} placeholder="Ej: Cambio de aceite y filtros..." />
+        <textarea {...register("descripcionTarea")} rows={2} className={`${inputCls} resize-none ${errors.descripcionTarea ? 'border-red-500 bg-red-50' : ''}`} placeholder="Ej: Cambio de aceite y filtros..." />
+        {errors.descripcionTarea && <p className="text-[10px] text-red-500 mt-0.5">{errors.descripcionTarea.message}</p>}
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Frecuencia {unidad ? `(cada N ${unidad})` : ''}</label>
-          <input type="number" min="1" value={form.frecuenciaValor} onChange={e => setForm(p => ({ ...p, frecuenciaValor: e.target.value }))} placeholder="Ej: 500" className={inputCls} />
+          <input type="number" min="1" {...register("frecuenciaValor")} placeholder="Ej: 500" className={`${inputCls} ${errors.frecuenciaValor ? 'border-red-500 bg-red-50' : ''}`} />
+          {errors.frecuenciaValor && <p className="text-[10px] text-red-500 mt-0.5">{errors.frecuenciaValor.message}</p>}
         </div>
         <div>
           <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Costo Estimado ($) <span className="font-normal text-slate-400 normal-case">opcional</span></label>
-          <input type="number" min="0" step="0.01" value={form.costoEstimado} onChange={e => setForm(p => ({ ...p, costoEstimado: e.target.value }))} placeholder="Presupuesto del plan" className={inputCls} />
+          <input type="number" min="0" step="0.01" {...register("costoEstimado")} placeholder="Presupuesto del plan" className={inputCls} />
         </div>
       </div>
 
       <div className="flex gap-2 pt-1">
-        <button onClick={handleSubmit} disabled={saving} className="flex-1 py-2 bg-slate-900 text-white text-sm font-bold rounded-xl hover:bg-slate-800 transition-colors disabled:opacity-60">
+        <button type="submit" disabled={saving} className="flex-1 py-2 bg-slate-900 text-white text-sm font-bold rounded-xl hover:bg-slate-800 transition-colors disabled:opacity-60">
           {saving ? 'Guardando...' : isEdit ? 'Actualizar Plan' : 'Crear Plan'}
         </button>
-        <button onClick={onCancel} className="px-4 py-2 border border-slate-200 text-slate-500 text-sm font-semibold rounded-xl hover:bg-slate-50 transition-colors">
+        <button type="button" onClick={onCancel} className="px-4 py-2 border border-slate-200 text-slate-500 text-sm font-semibold rounded-xl hover:bg-slate-50 transition-colors">
           Cancelar
         </button>
       </div>
-    </div>
+    </form>
   );
 };
 
@@ -236,6 +283,7 @@ const PlanForm = ({ equipoId, plan, unidad, onGuardado, onCancel }) => {
 /* ─── Página principal ──────────────────────────────────────────── */
 export const MantenimientoPage = () => {
   /* ── state ── */
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [equipos, setEquipos] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [filterTab, setFilterTab] = useState('TODOS');
@@ -251,6 +299,7 @@ export const MantenimientoPage = () => {
   const [loadingDet, setLoadingDet] = useState(false);
 
   const [showRegForm, setShowRegForm] = useState(false);
+  const [initialRegPlanId, setInitialRegPlanId] = useState(null);
   const [editPlan, setEditPlan] = useState(null);   // null | plan object
   const [showPlanForm, setShowPlanForm] = useState(false);
   const [otDrawer, setOtDrawer] = useState(null);
@@ -359,30 +408,22 @@ export const MantenimientoPage = () => {
     } catch (e) { console.error(e); }
   };
 
-  const handleEjecutarPlan = async (planId) => {
-    try {
-      const res = await fetch(`/api/mantenimientos/planes/${planId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ marcarEjecutado: true }),
-      });
-      const json = await res.json();
-      if (json.ok) {
-        fetchDetalle(selectedId);
-        fetchEquipos();
-      }
-    } catch (e) { console.error(e); }
+  const handleEjecutarPlan = (planId) => {
+    setActiveTab('registros');
+    setInitialRegPlanId(planId);
+    setShowRegForm(true);
   };
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#F5F6FA]">
-      <Sidebar />
+      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       <main className="flex-1 flex flex-col overflow-hidden">
         <Header
           title="Mantenimiento"
           subtitle="Registros, planes preventivos y costos por equipo"
           showSearch={false}
+          onMenuClick={() => setSidebarOpen(!sidebarOpen)}
           notifications={[]}
         // actionButton={
         //   <button
@@ -574,14 +615,25 @@ export const MantenimientoPage = () => {
                   {!loadingDet && activeTab === 'registros' && (
                     <div className="max-w-2xl space-y-4">
 
+                      {!showRegForm && (
+                        <button onClick={() => { setInitialRegPlanId(null); setShowRegForm(true); }}
+                          className="w-full py-4 border-2 border-dashed border-slate-200 hover:border-slate-800 hover:bg-slate-50 text-slate-500 hover:text-slate-900 rounded-xl text-sm font-bold transition-all flex justify-center items-center gap-2 mb-6"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                          Nuevo Registro
+                        </button>
+                      )}
+
                       {showRegForm && (
                         <RegistroForm
                           equipoId={selectedId}
                           tipos={tipos}
                           unidad={equipoSel.parametro?.unidad}
                           planes={planes}
+                          initialPlanId={initialRegPlanId}
+                          horometroAnterior={equipoSel.horasAcumuladas ?? 0}
                           onGuardado={handleRegistroCreado}
-                          onCancel={() => setShowRegForm(false)}
+                          onCancel={() => { setShowRegForm(false); setInitialRegPlanId(null); }}
                         />
                       )}
 
@@ -614,7 +666,7 @@ export const MantenimientoPage = () => {
                               <span className="text-xs text-slate-400">{fmtDate(r.fechaServicio)}</span>
                             </div>
 
-                            <div className="grid grid-cols-4 gap-3 text-xs mb-3">
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs mb-3">
                               <div className="bg-slate-50 rounded-xl p-3">
                                 <p className="text-slate-400 mb-0.5">Lectura</p>
                                 <p className="font-bold text-slate-800 font-mono">
@@ -646,15 +698,6 @@ export const MantenimientoPage = () => {
                           </div>
                         );
                       })}
-
-                      {!showRegForm && registros.length > 0 && (
-                        <button onClick={() => setShowRegForm(true)}
-                          className="w-full py-3 border-2 border-dashed border-slate-200 hover:border-slate-400 hover:bg-slate-50 text-slate-400 hover:text-slate-600 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                          Agregar Registro
-                        </button>
-                      )}
                     </div>
                   )}
 
@@ -730,7 +773,7 @@ export const MantenimientoPage = () => {
                               </div>
                             </div>
 
-                            <div className="grid grid-cols-4 gap-2 text-center text-xs my-3">
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs my-3">
                               <div><p className="text-slate-400">Base</p><p className="font-bold text-slate-700">{base}h</p></div>
                               <div><p className="text-slate-400">Meta</p><p className="font-bold text-blue-700">{meta}h</p></div>
                               <div><p className="text-slate-400">Umbral</p><p className="font-bold text-amber-600">{umbral}h</p></div>
@@ -753,15 +796,26 @@ export const MantenimientoPage = () => {
                               <p className="text-[10px] text-slate-400 mb-2">Última ejecución: {fmtDate(plan.fechaUltimaEjecucion)}</p>
                             )}
 
-                            <button
-                              onClick={() => handleEjecutarPlan(plan.id)}
-                              className={`w-full py-2.5 text-xs font-bold rounded-xl transition-colors ${nivel === 'critico' ? 'bg-red-600 hover:bg-red-700 text-white' :
-                                nivel === 'advertencia' ? 'bg-amber-500 hover:bg-amber-600 text-white' :
-                                  'bg-emerald-600 hover:bg-emerald-700 text-white'
-                                }`}
-                            >
-                              Ejecutar Mantenimiento
-                            </button>
+                            {(() => {
+                              const isRequerido = horasEquipo >= (meta - umbral);
+                              const isUrgente = horasEquipo >= meta;
+
+                              return (
+                                <button
+                                  disabled={!isRequerido}
+                                  title={!isRequerido ? `Faltan ${meta - umbral - horasEquipo}h para el umbral de aviso.` : ''}
+                                  onClick={() => handleEjecutarPlan(plan.id)}
+                                  className={`w-full py-2.5 text-xs font-bold rounded-xl transition-all ${!isRequerido
+                                    ? 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'
+                                    : isUrgente
+                                      ? 'bg-red-600 hover:bg-red-700 text-white shadow-md shadow-red-200 animate-pulse'
+                                      : 'bg-amber-500 hover:bg-amber-600 text-white shadow-md shadow-amber-200'
+                                    }`}
+                                >
+                                  {isUrgente ? 'Ejecución Urgente' : 'Ejecutar Mantenimiento'}
+                                </button>
+                              );
+                            })()}
                           </div>
                         );
                       })}
@@ -797,7 +851,7 @@ export const MantenimientoPage = () => {
                       <div className="max-w-3xl space-y-5">
 
                         {/* ── KPI resumen ── */}
-                        <div className="grid grid-cols-4 gap-3">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                           {[
                             { label: 'Total Registros', value: registros.length, bg: 'bg-slate-50', color: 'text-slate-900' },
                             { label: 'Costo Total Real', value: fmtMoney(totalReal), bg: 'bg-slate-50', color: 'text-slate-900' },

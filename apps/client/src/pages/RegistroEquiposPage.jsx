@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { Sidebar } from '../components/Sidebar';
 import { Header } from '../components/Header';
+import { Modal } from '../components/Modal';
 
 export const RegistroEquipoPage = () => {
   const fileInputRef = useRef(null);
@@ -11,6 +12,7 @@ export const RegistroEquipoPage = () => {
   const [fetchedData, setFetchedData] = useState(null);
   const [isFetching, setIsFetching] = useState(false);
   const [showBanner, setShowBanner] = useState(true);
+  const [modal, setModal] = useState({ open: false, title: '', message: '', type: 'success' });
 
   const [form, setForm] = useState({
     equipment_name: '',
@@ -73,7 +75,12 @@ export const RegistroEquipoPage = () => {
   const handleSubmit = (e) => {
     e.preventDefault();
     console.log('Guardando equipo:', form);
-    alert('Equipo guardado exitosamente');
+    setModal({
+      open: true,
+      title: 'Éxito',
+      message: 'Equipo guardado exitosamente',
+      type: 'success',
+    });
   };
 
   return (
@@ -103,18 +110,18 @@ export const RegistroEquipoPage = () => {
         />
 
         {/* SCROLL AREA */}
-        <div className="flex-1 overflow-y-auto p-8 space-y-6">
+        <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6">
 
           {/* GRID PRINCIPAL: Formulario (izq) + Panel Fetch (der) */}
-          <div className="grid grid-cols-12 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
             {/* COLUMNA IZQUIERDA: Formulario */}
-            <div className="col-span-8 space-y-6">
+            <div className="lg:col-span-8 space-y-6">
 
               {/* Campos de identificación */}
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
                 {/* Número de serie + Kilometraje - estilo Joymile top */}
-                <div className="grid grid-cols-2 gap-4 mb-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
                   <div className="relative">
                     <label className="absolute -top-2 left-3 bg-white px-1 text-xs font-semibold text-emerald-600 z-10">
                       Número de Serie
@@ -147,7 +154,7 @@ export const RegistroEquipoPage = () => {
                 </div>
 
                 {/* Precio / Nombre del Equipo + Categoría */}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <input
                       name="equipment_name"
@@ -198,7 +205,7 @@ export const RegistroEquipoPage = () => {
                   </svg>
                   Información General
                 </h3>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Marca</label>
                     <input name="brand" value={form.brand} onChange={handleChange} placeholder="Ej. Caterpillar" className="w-full border border-slate-200 rounded-xl py-2.5 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300" />
@@ -233,7 +240,7 @@ export const RegistroEquipoPage = () => {
                   </svg>
                   Especificaciones Técnicas
                 </h3>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Potencia (HP/kW)</label>
                     <input name="power" value={form.power} onChange={handleChange} placeholder="143 HP" className="w-full border border-slate-200 rounded-xl py-2.5 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300" />
@@ -246,7 +253,7 @@ export const RegistroEquipoPage = () => {
                     <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Cap. Tanque (L)</label>
                     <input name="fuel_capacity" value={form.fuel_capacity} onChange={handleChange} placeholder="345" type="number" className="w-full border border-slate-200 rounded-xl py-2.5 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300" />
                   </div>
-                  <div className="col-span-3">
+                  <div className="sm:col-span-3 lg:col-span-1">
                     <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Notas Adicionales</label>
                     <textarea name="additional_notes" value={form.additional_notes} onChange={handleChange} rows={3} placeholder="Detalles sobre configuración especial, accesorios incluidos, etc." className="w-full border border-slate-200 rounded-xl py-2.5 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300 resize-none" />
                   </div>
@@ -321,7 +328,7 @@ export const RegistroEquipoPage = () => {
                     <span className="text-sm font-medium text-slate-700">Activar inmediatamente</span>
                   </label>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className={`border rounded-xl p-4 transition-colors ${preventiveAlert ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-slate-50'}`}>
                     <div className="flex items-center justify-between mb-3">
                       <span className="text-sm font-semibold text-slate-800">Mantenimiento Preventivo</span>
@@ -385,7 +392,7 @@ export const RegistroEquipoPage = () => {
             </div>
 
             {/* COLUMNA DERECHA: Panel de Datos Fetcheados - inspirado en Joymile */}
-            <div className="col-span-4">
+            <div className="lg:col-span-4">
               <div className="sticky top-0">
                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
                   {/* Estado del fetch */}
@@ -474,6 +481,15 @@ export const RegistroEquipoPage = () => {
           </div>
         </div>
       </main>
+
+      {/* Modal */}
+      <Modal
+        open={modal.open}
+        onClose={() => setModal({ ...modal, open: false })}
+        title={modal.title}
+        message={modal.message}
+        type={modal.type}
+      />
     </div>
   );
 };

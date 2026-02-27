@@ -100,18 +100,27 @@ export const createMantenimiento = async (req, res) => {
             include: INCLUDE_MANT,
         });
 
+        const equipo = await prisma.equipo.findUnique({
+            where: { id: Number(equipoId) },
+            select: { horasAcumuladas: true },
+        });
+
+        const nuevaLectura = Math.max(Number(lecturaActual), equipo?.horasAcumuladas ?? 0);
+
+        // Actualizar el equipo con la nueva lectura de horas
+        await prisma.equipo.update({
+            where: { id: Number(equipoId) },
+            data: {
+                horasAcumuladas: nuevaLectura,
+            },
+        });
+
         // Si se especifica un planId, marcar ESE plan como ejecutado
-        // La base del plan se actualiza al horómetro actual del equipo
-        // Las horas acumuladas del equipo NUNCA se reinician (es un horómetro total)
         if (planId) {
-            const equipo = await prisma.equipo.findUnique({
-                where: { id: Number(equipoId) },
-                select: { horasAcumuladas: true },
-            });
             await prisma.planPreventivo.update({
                 where: { id: Number(planId) },
                 data: {
-                    horasUltimaEjecucion: equipo?.horasAcumuladas ?? 0,
+                    horasUltimaEjecucion: nuevaLectura,
                     fechaUltimaEjecucion: new Date(),
                 },
             });
