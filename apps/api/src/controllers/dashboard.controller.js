@@ -21,6 +21,9 @@ export const getDashboard = async (_req, res) => {
             costoMesAgg,
             certsPorVencer,
             certsVencidas,
+            equiposOperativos,
+            equiposNoOperativos,
+            fallasAbiertas,
         ] = await Promise.all([
             prisma.equipo.count(),
             prisma.registroMantenimiento.count(),
@@ -46,6 +49,9 @@ export const getDashboard = async (_req, res) => {
             prisma.certificacionHistorial.count({
                 where: { vencimiento: { lt: ahora } },
             }),
+            prisma.equipo.count({ where: { estadoOperativo: "OPERATIVO" } }),
+            prisma.equipo.count({ where: { estadoOperativo: "NO_OPERATIVO" } }),
+            prisma.registroFalla.count({ where: { estado: { not: "RESUELTA" } } }),
         ]);
 
         // ── Por tipo ────────────────────────────────────────────────
@@ -113,6 +119,9 @@ export const getDashboard = async (_req, res) => {
                     costoMes: Number(costoMesAgg._sum.costoTotal ?? 0),
                     certsPorVencer,
                     certsVencidas,
+                    equiposOperativos,
+                    equiposNoOperativos,
+                    fallasAbiertas,
                 },
                 porTipo,
                 porMes,
@@ -123,5 +132,65 @@ export const getDashboard = async (_req, res) => {
     } catch (err) {
         console.error(err);
         return res.status(500).json({ ok: false, message: "Error generando dashboard" });
+    }
+};
+
+/* ── GET /api/dashboard/alertas-horas ──────────────────── */
+export const getAlertasHoras = async (_req, res) => {
+    try {
+        const planes = await prisma.planPreventivo.findMany({
+            where: { frecuenciaValor: { gt: 0 } },
+            include: {
+                equipo: {
+                    select: {
+                        id: true, codigo: true, modelo: true,
+                        horasAcumuladas: true, estadoOperativo: true,
+                        marca: { select: { nombre: true } },
+                        ubicacion: { select: { nombre: true } },
+                    },
+                },
+            },
+        });
+
+        const alertas = planes
+            .map(plan => {
+                const horasEquipo = plan.equipo?.horasAcumuladas ?? 0;
+                const base = plan.horasUltimaEjecucion ?? 0;
+                const frecuencia = plan.frecuenciaValor;
+                const meta = base + frecuencia;
+                const umbral = Math.max(2, Math.round(frecuencia * 0.1));
+                const horasRestantes = meta - horasEquipo;
+                const pct = frecuencia > 0 ? ((horasEquipo - base) / frecuencia) * 100 : 0;
+
+                let nivelAlerta = 'normal';
+                if (horasEquipo >= meta) nivelAlerta = 'critico';
+                else if (horasEquipo >= meta - umbral) nivelAlerta = 'advertencia';
+                else if (pct >= 70) nivelAlerta = 'precaucion';
+
+                return {
+                    planId: plan.id,
+                    descripcionTarea: plan.descripcionTarea,
+                    frecuenciaValor: frecuencia,
+                    fechaUltimaEjecucion: plan.fechaUltimaEjecucion,
+                    equipoId: plan.equipo?.id,
+                    codigo: plan.equipo?.codigo,
+                    modelo: plan.equipo?.modelo,
+                    marca: plan.equipo?.marca,
+                    ubicacion: plan.equipo?.ubicacion,
+                    horasEquipo,
+                    meta,
+                    umbral,
+                    horasRestantes: Math.max(0, horasRestantes),
+                    porcentajeUsado: Math.min(100, Math.max(0, pct)),
+                    nivelAlerta,
+                };
+            })
+            .filter(a => a.nivelAlerta !== 'normal')
+            .sort((a, b) => a.horasRestantes - b.horasRestantes);
+
+        return res.json({ ok: true, data: alertas });
+    } catch (err) {
+        console.error(err);
+        return res.status(500).json({ ok: false, message: "Error obteniendo alertas de horas" });
     }
 };

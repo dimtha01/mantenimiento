@@ -11,6 +11,14 @@ model Equipo {
   propietarioId   Int @map("propietario_id")
   parametroId     Int @map("parametro_id")
 
+  // Campos para control de mantenimiento basado en horas
+  horasMantenimientoPreventivo Int?      @default(0) @map("horas_mantenimiento_preventivo")
+  horasAcumuladas              Int?      @default(0) @map("horas_acumuladas")
+  ultimaFechaHoras             DateTime? @map("ultima_fecha_horas") @db.Date
+
+  // Estado operativo del equipo
+  estadoOperativo String @default("OPERATIVO") @map("estado_operativo")
+
   tipo        TipoEquipo       @relation(fields: [tipoId], references: [id])
   marca       Marca            @relation(fields: [marcaId], references: [id])
   ubicacion   UbicacionEquipo  @relation(fields: [unidadNegocioId], references: [id])
@@ -20,6 +28,7 @@ model Equipo {
   certificaciones CertificacionHistorial[]
   planes          PlanPreventivo[]
   mantenimientos  RegistroMantenimiento[]
+  fallas          RegistroFalla[]
 
   imagenes Imagen[]
 

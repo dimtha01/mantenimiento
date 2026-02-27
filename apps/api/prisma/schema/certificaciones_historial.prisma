@@ -1,6 +1,7 @@
 model CertificacionHistorial {
   id            Int      @id @default(autoincrement())
   equipoId      Int      @map("equipo_id")
+  nombre        String   @default("Certificación General")
   fechaEmision  DateTime @map("fecha_emision") @db.Date
   duracionMeses Int      @map("duracion_meses")
   vencimiento   DateTime @map("vencimiento") @db.Date

@@ -20,6 +20,7 @@ const fmtDate = (iso) => iso ? new Date(iso).toLocaleDateString('es-VE') : '—'
 const FORM_EMPTY = {
   codigo: '', modelo: '', serial: '', factura: false,
   marcaId: '', tipoId: '', unidadNegocioId: '', propietarioId: '', parametroId: '',
+  horasMantenimientoPreventivo: '',
 };
 
 /* ─── SELECT helper ───────────────────────────────────────────── */
@@ -60,8 +61,19 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
 
   /* nuevo certificado */
   const [showCertForm, setShowCertForm] = useState(false);
-  const [newCert, setNewCert] = useState({ fechaEmision: '', duracionMeses: '', vencimiento: '' });
+  const [newCert, setNewCert] = useState({ nombre: '', fechaEmision: '', duracionMeses: '', vencimiento: '' });
+  const [certError, setCertError] = useState(null);
   const [certSaving, setCertSaving] = useState(false);
+
+  /* registro de horas */
+  const [horasInput, setHorasInput] = useState('');
+  const [horasSaving, setHorasSaving] = useState(false);
+
+  /* fallas */
+  const [showFallaForm, setShowFallaForm] = useState(false);
+  const [newFalla, setNewFalla] = useState({ descripcion: '', severidad: 'MEDIA', fecha: new Date().toISOString().split('T')[0] });
+  const [fallaSaving, setFallaSaving] = useState(false);
+  const [estadoSaving, setEstadoSaving] = useState(false);
 
   /* ── cargar catálogos ──────────────────────────────── */
   const fetchCatalogos = useCallback(async () => {
@@ -99,6 +111,7 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
         unidadNegocioId: equipo.unidadNegocioId ?? equipo.ubicacion?.id ?? '',
         propietarioId: equipo.propietarioId ?? equipo.propietario?.id ?? '',
         parametroId: equipo.parametroId ?? equipo.parametro?.id ?? '',
+        horasMantenimientoPreventivo: equipo.horasMantenimientoPreventivo ?? '',
       };
       setForm(initial);
       setOriginalForm(initial);
@@ -158,13 +171,22 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
 
   /* ── agregar certificacion ────────────────────────── */
   const handleAddCert = async () => {
-    if (!newCert.fechaEmision || !newCert.duracionMeses || !newCert.vencimiento) return;
+    setCertError(null);
+    if (!newCert.nombre || !newCert.fechaEmision || !newCert.duracionMeses || !newCert.vencimiento) {
+      setCertError('Todos los campos son obligatorios');
+      return;
+    }
+    if (new Date(newCert.vencimiento) <= new Date(newCert.fechaEmision)) {
+      setCertError('La fecha de vencimiento debe ser posterior a la de emisión');
+      return;
+    }
     setCertSaving(true);
     try {
       const res = await fetch(`/api/equipos/${equipo.id}/certificaciones`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          nombre: newCert.nombre,
           fechaEmision: newCert.fechaEmision,
           duracionMeses: parseInt(newCert.duracionMeses),
           vencimiento: newCert.vencimiento,
@@ -172,13 +194,13 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
       });
       const json = await res.json();
       if (!json.ok) throw new Error(json.message);
-      // refrescar equipo completo
       const eq = await fetch(`/api/equipos/${equipo.id}`).then(r => r.json());
-      if (eq.ok) onSave(null, eq.data); // notifica al padre del refresh sin cerrar
+      if (eq.ok) onSave(null, eq.data);
 
-      setNewCert({ fechaEmision: '', duracionMeses: '', vencimiento: '' });
+      setNewCert({ nombre: '', fechaEmision: '', duracionMeses: '', vencimiento: '' });
       setShowCertForm(false);
     } catch (e) {
+      setCertError(e.message);
       console.error('Error guardando cert:', e);
     } finally {
       setCertSaving(false);
@@ -192,9 +214,71 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
   const alertCerts = certs.filter((c) => certBadge(c.vencimiento).alert);
   const mantenimientos = equipo.mantenimientos ?? [];
   const planes = equipo.planes ?? [];
+  const fallas = equipo.fallas ?? [];
+  const fallasAbiertas = fallas.filter(f => f.estado !== 'RESUELTA');
+
+  /* ── handler: registrar falla ── */
+  const handleAddFalla = async () => {
+    if (!newFalla.descripcion) return;
+    setFallaSaving(true);
+    try {
+      const res = await fetch(`/api/equipos/${equipo.id}/fallas`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newFalla),
+      });
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.message);
+      if (json.equipo) onSave(null, json.equipo);
+      setNewFalla({ descripcion: '', severidad: 'MEDIA', fecha: new Date().toISOString().split('T')[0] });
+      setShowFallaForm(false);
+    } catch (e) {
+      console.error('Error registrando falla:', e);
+    } finally {
+      setFallaSaving(false);
+    }
+  };
+
+  /* ── handler: actualizar falla ── */
+  const handleUpdateFalla = async (fallaId, data) => {
+    try {
+      const res = await fetch(`/api/equipos/${equipo.id}/fallas/${fallaId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.message);
+      if (json.equipo) onSave(null, json.equipo);
+    } catch (e) {
+      console.error('Error actualizando falla:', e);
+    }
+  };
+
+  /* ── handler: cambiar estado operativo ── */
+  const handleToggleEstado = async () => {
+    setEstadoSaving(true);
+    try {
+      const nuevoEstado = equipo.estadoOperativo === 'OPERATIVO' ? 'NO_OPERATIVO' : 'OPERATIVO';
+      const res = await fetch(`/api/equipos/${equipo.id}/estado-operativo`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estadoOperativo: nuevoEstado }),
+      });
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.message);
+      onSave(null, json.data);
+    } catch (e) {
+      console.error('Error cambiando estado:', e);
+    } finally {
+      setEstadoSaving(false);
+    }
+  };
 
   const TABS = [
     { id: 'general', label: 'Info General', badge: 0 },
+    { id: 'horas', label: 'Horas de Uso', badge: 0 },
+    { id: 'fallas', label: 'Fallas', badge: fallasAbiertas.length },
     { id: 'certificaciones', label: 'Certificaciones', badge: alertCerts.length },
     { id: 'mantenimientos', label: 'Mantenimientos', badge: 0 },
     { id: 'planes', label: 'Planes', badge: 0 },
@@ -214,8 +298,6 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
         {/* ── HEADER ── */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-white shrink-0">
           <div className="flex items-center gap-3">
-            <span className="text-xs text-slate-400">ID</span>
-            <span className="text-sm font-bold text-slate-900 font-mono">{equipo.id ?? 'Nuevo'}</span>
             <span className="w-1 h-1 rounded-full bg-slate-300" />
             <span className="text-xs text-slate-400">{isNew ? 'Nuevo equipo' : 'Editar equipo'}</span>
           </div>
@@ -266,11 +348,44 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
                 </p>
               </div>
               <div className="ml-auto flex items-center gap-2 shrink-0">
+                <span className={`text-xs font-bold px-2.5 py-1 rounded-full inline-flex items-center gap-1.5 ${equipo.estadoOperativo === 'NO_OPERATIVO' ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'
+                  }`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${equipo.estadoOperativo === 'NO_OPERATIVO' ? 'bg-red-500 animate-pulse' : 'bg-emerald-500'}`} />
+                  {equipo.estadoOperativo === 'NO_OPERATIVO' ? 'No Operativo' : 'Operativo'}
+                </span>
                 <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${equipo.factura ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
                   {equipo.factura ? '✓ Con Factura' : 'Sin Factura'}
                 </span>
               </div>
             </div>
+
+            {/* Alerta de planes pendientes */}
+            {(() => {
+              const planes = equipo.planes ?? [];
+              const horasEquipo = equipo.horasAcumuladas ?? 0;
+              const vencidos = planes.filter(p => horasEquipo >= (p.horasUltimaEjecucion ?? 0) + p.frecuenciaValor);
+              const proximos = planes.filter(p => p.frecuenciaValor > 0 && horasEquipo < (p.horasUltimaEjecucion ?? 0) + p.frecuenciaValor && horasEquipo >= (p.horasUltimaEjecucion ?? 0) + p.frecuenciaValor - Math.max(2, Math.round(p.frecuenciaValor * 0.1)));
+
+              if (vencidos.length > 0) return (
+                <button onClick={() => window.location.href = `/mantenimiento?equipo=${equipo.id}`} className="mt-3 w-full flex items-center gap-3 bg-red-50 border border-red-200 rounded-xl px-4 py-2.5 cursor-pointer hover:bg-red-100 transition-colors text-left">
+                  <svg className="w-5 h-5 text-red-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                  <p className="text-xs text-red-700 font-medium flex-1">
+                    <strong>¡Mantenimiento requerido!</strong> {vencidos.length} Plande(s) vencido(s).
+                  </p>
+                  <span className="text-xs font-bold text-red-600 underline">Ir a Mantenimiento</span>
+                </button>
+              );
+              if (proximos.length > 0) return (
+                <button onClick={() => window.location.href = `/mantenimiento?equipo=${equipo.id}`} className="mt-3 w-full flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 cursor-pointer hover:bg-amber-100 transition-colors text-left">
+                  <svg className="w-5 h-5 text-amber-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  <p className="text-xs text-amber-700 font-medium flex-1">
+                    <strong>Mantenimiento próximo:</strong> {proximos.length} Plande(s) en umbral de aviso.
+                  </p>
+                  <span className="text-xs font-bold text-amber-600 underline">Ir a Mantenimiento</span>
+                </button>
+              );
+              return null;
+            })()}
 
             {/* Alertas certificaciones */}
             {alertCerts.length > 0 && (
@@ -285,6 +400,20 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
                   {alertCerts.length} certificado{alertCerts.length > 1 ? 's' : ''} por vencer o vencido.
                 </p>
                 <span className="text-xs font-bold text-amber-600 underline">Ver ahora</span>
+              </button>
+            )}
+
+            {/* Alerta de fallas abiertas */}
+            {fallasAbiertas.length > 0 && (
+              <button
+                onClick={() => setActiveTab('fallas')}
+                className="mt-3 w-full flex items-center gap-2 bg-orange-50 border border-orange-200 rounded-xl px-4 py-2.5 cursor-pointer hover:bg-orange-100 transition-colors text-left"
+              >
+                <svg className="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                <p className="text-xs text-orange-700 font-medium flex-1">
+                  {fallasAbiertas.length} falla{fallasAbiertas.length > 1 ? 's' : ''} sin resolver
+                </p>
+                <span className="text-xs font-bold text-orange-600 underline">Ver fallas</span>
               </button>
             )}
           </div>
@@ -437,6 +566,167 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
                   El equipo cuenta con factura de compra
                 </label>
               </div>
+
+
+            </div>
+          )}
+
+          {/* ════ Horas de Uso ════ */}
+          {activeTab === 'horas' && (
+            <div className="px-6 py-5 space-y-4">
+
+              {/* Horómetro actual */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="border border-slate-200 rounded-xl p-4 text-center bg-white">
+                  <p className="text-4xl font-black text-blue-600">{equipo.horasAcumuladas ?? 0}</p>
+                  <p className="text-xs text-slate-500 font-semibold mt-1">Horómetro Actual</p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">horas acumuladas de uso</p>
+                </div>
+                <div className="border border-slate-200 rounded-xl p-4 text-center bg-white">
+                  <p className="text-sm text-slate-500 mt-1">Último registro</p>
+                  <p className="text-lg font-bold text-slate-800 mt-1">
+                    {equipo.ultimaFechaHoras ? new Date(equipo.ultimaFechaHoras).toLocaleDateString('es-VE') : '—'}
+                  </p>
+                  <p className="text-[10px] text-slate-400 mt-1">Planes preventivos: {(equipo.planes ?? []).length}</p>
+                </div>
+              </div>
+
+              {/* Planes preventivos con Meta/Umbral */}
+              {(equipo.planes ?? []).length > 0 ? (
+                <div className="space-y-3">
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Estado de Planes Preventivos</p>
+                  {(equipo.planes ?? []).map(plan => {
+                    const horasEquipo = equipo.horasAcumuladas ?? 0;
+                    const base = plan.horasUltimaEjecucion ?? 0;
+                    const frecuencia = plan.frecuenciaValor;
+                    const meta = base + frecuencia;
+                    const umbral = Math.max(2, Math.round(frecuencia * 0.1));
+                    const horasRestantes = Math.max(0, meta - horasEquipo);
+                    const pct = frecuencia > 0 ? Math.min(100, Math.max(0, ((horasEquipo - base) / frecuencia) * 100)) : 0;
+
+                    let nivelAlerta = 'normal';
+                    if (horasEquipo >= meta) nivelAlerta = 'critico';
+                    else if (horasEquipo >= meta - umbral) nivelAlerta = 'advertencia';
+                    else if (pct >= 70) nivelAlerta = 'precaucion';
+
+                    const borderColor = nivelAlerta === 'critico' ? 'border-red-300 bg-red-50' :
+                      nivelAlerta === 'advertencia' ? 'border-amber-300 bg-amber-50' :
+                        nivelAlerta === 'precaucion' ? 'border-yellow-200 bg-yellow-50' :
+                          'border-slate-200 bg-white';
+                    const barColor = nivelAlerta === 'critico' ? 'bg-red-500' :
+                      nivelAlerta === 'advertencia' ? 'bg-amber-500' :
+                        nivelAlerta === 'precaucion' ? 'bg-yellow-500' : 'bg-emerald-500';
+
+                    return (
+                      <div key={plan.id} className={`border rounded-xl p-4 ${borderColor}`}>
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-bold text-slate-800">{plan.descripcionTarea}</p>
+                            {nivelAlerta !== 'normal' && (
+                              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded text-white ${nivelAlerta === 'critico' ? 'bg-red-500' : nivelAlerta === 'advertencia' ? 'bg-amber-500' : 'bg-yellow-500'}`}>
+                                {nivelAlerta === 'critico' ? 'VENCIDO' : nivelAlerta === 'advertencia' ? 'DENTRO DEL UMBRAL' : 'PRÓXIMO'}
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-xs font-mono text-slate-500">c/{frecuencia}h</span>
+                        </div>
+
+                        {/* Info Meta/Umbral */}
+                        <div className="grid grid-cols-4 gap-2 text-center text-xs mb-3">
+                          <div>
+                            <p className="text-slate-400">Base</p>
+                            <p className="font-bold text-slate-700">{base}h</p>
+                          </div>
+                          <div>
+                            <p className="text-slate-400">Meta</p>
+                            <p className="font-bold text-blue-700">{meta}h</p>
+                          </div>
+                          <div>
+                            <p className="text-slate-400">Umbral</p>
+                            <p className="font-bold text-amber-600">{umbral}h</p>
+                          </div>
+                          <div>
+                            <p className="text-slate-400">Restantes</p>
+                            <p className={`font-bold ${nivelAlerta === 'critico' ? 'text-red-600' : nivelAlerta === 'advertencia' ? 'text-amber-600' : 'text-emerald-600'}`}>{horasRestantes}h</p>
+                          </div>
+                        </div>
+
+                        {/* Barra de progreso */}
+                        <div className="relative">
+                          <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                            <div className={`h-full ${barColor} transition-all`} style={{ width: `${pct}%` }} />
+                          </div>
+                          {/* Marca del umbral */}
+                          <div
+                            className="absolute top-0 w-0.5 h-2.5 bg-slate-800 opacity-40"
+                            style={{ left: `${Math.max(0, ((frecuencia - umbral) / frecuencia) * 100)}%` }}
+                            title={`Umbral: aviso a las ${meta - umbral}h`}
+                          />
+                        </div>
+                        <div className="flex justify-between mt-1">
+                          <span className="text-[10px] text-slate-400">{base}h (última ejec.)</span>
+                          <span className="text-[10px] text-slate-400">{horasEquipo}h actual</span>
+                          <span className="text-[10px] text-slate-400">{meta}h (meta)</span>
+                        </div>
+                        {plan.fechaUltimaEjecucion && (
+                          <p className="text-[10px] text-slate-400 mt-1">Última ejecución: {new Date(plan.fechaUltimaEjecucion).toLocaleDateString('es-VE')}</p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-4 bg-slate-50 rounded-xl border border-slate-200">
+                  <p className="text-xs text-slate-500">Sin planes preventivos configurados.</p>
+                  <p className="text-[10px] text-slate-400 mt-1">Crea planes desde el módulo de Mantenimiento para visualizar metas aquí.</p>
+                </div>
+              )}
+
+              {/* Formulario para registrar horas */}
+              <div className="border border-slate-200 rounded-2xl p-5 bg-slate-50">
+                <p className="text-sm font-bold text-slate-900 mb-3">Registrar Horas de Uso</p>
+                <div className="flex gap-3">
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    value={horasInput}
+                    onChange={(e) => setHorasInput(e.target.value)}
+                    placeholder="Ej: 8 horas trabajadas hoy"
+                    className="flex-1 border border-slate-200 rounded-xl py-2.5 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300 bg-white"
+                  />
+                  <button
+                    onClick={async () => {
+                      if (!horasInput || Number(horasInput) <= 0) return;
+                      setHorasSaving(true);
+                      try {
+                        const res = await fetch(`/api/equipos/${equipo.id}/registrar-horas`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ horas: Number(horasInput) }),
+                        });
+                        const json = await res.json();
+                        if (!json.ok) throw new Error(json.message);
+                        // Refrescar equipo
+                        const eq = await fetch(`/api/equipos/${equipo.id}`).then(r => r.json());
+                        if (eq.ok) onSave(null, eq.data);
+                        setHorasInput('');
+                      } catch (e) {
+                        console.error('Error registrando horas:', e);
+                      } finally {
+                        setHorasSaving(false);
+                      }
+                    }}
+                    disabled={horasSaving || !horasInput || Number(horasInput) <= 0}
+                    className="px-6 py-2.5 bg-slate-900 text-white text-sm font-bold rounded-xl hover:bg-slate-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {horasSaving ? 'Guardando...' : 'Registrar'}
+                  </button>
+                </div>
+                <p className="text-xs text-slate-500 mt-2">
+                  Las horas se acumulan. Cada plan tiene su propia meta. Al ejecutar un plan desde Mantenimiento, su base se actualiza al horómetro actual y el ciclo reinicia para ese plan.
+                </p>
+              </div>
             </div>
           )}
 
@@ -492,10 +782,20 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
                                     {isExp ? 'VENCIDO' : isSoon ? `${d}d` : 'VIGENTE'}
                                   </span>
                                 </div>
-                                <p className="text-xs text-slate-400 mt-1">
+                                <p className="text-sm font-semibold text-slate-800 mt-1">{cert.nombre || 'Certificación'}</p>
+                                <p className="text-xs text-slate-400 mt-0.5">
                                   Duración: <span className="font-semibold text-slate-700">{cert.duracionMeses} meses</span>
                                 </p>
                               </div>
+                              {isExp && (
+                                <button
+                                  onClick={() => {
+                                    setNewCert({ nombre: cert.nombre || '', fechaEmision: '', duracionMeses: String(cert.duracionMeses), vencimiento: '' });
+                                    setShowCertForm(true);
+                                  }}
+                                  className="px-3 py-1.5 text-xs font-bold bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors self-start"
+                                >Renovar</button>
+                              )}
                             </div>
                             <div className="grid grid-cols-2 gap-2 text-xs">
                               <div>
@@ -521,12 +821,38 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
               {showCertForm ? (
                 <div className="border border-slate-200 rounded-2xl p-5 space-y-3 bg-slate-50">
                   <p className="text-sm font-bold text-slate-900">Nuevo Certificado</p>
+                  {certError && (
+                    <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-xl">
+                      <svg className="w-4 h-4 text-red-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                      <p className="text-xs text-red-700">{certError}</p>
+                    </div>
+                  )}
+                  <Field label="Nombre de la Certificación">
+                    <input
+                      type="text"
+                      value={newCert.nombre}
+                      onChange={(e) => setNewCert((p) => ({ ...p, nombre: e.target.value }))}
+                      placeholder="Ej: Certificación ISO 9001, Inspección Técnica..."
+                      className={inputCls}
+                    />
+                  </Field>
                   <div className="grid grid-cols-2 gap-3">
                     <Field label="Fecha de Emisión">
                       <input
                         type="date"
                         value={newCert.fechaEmision}
-                        onChange={(e) => setNewCert((p) => ({ ...p, fechaEmision: e.target.value }))}
+                        onChange={(e) => {
+                          const fe = e.target.value;
+                          setNewCert((p) => {
+                            const updated = { ...p, fechaEmision: fe };
+                            if (fe && p.duracionMeses) {
+                              const d = new Date(fe);
+                              d.setMonth(d.getMonth() + parseInt(p.duracionMeses));
+                              updated.vencimiento = d.toISOString().split('T')[0];
+                            }
+                            return updated;
+                          });
+                        }}
                         className={inputCls}
                       />
                     </Field>
@@ -535,7 +861,18 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
                         type="number"
                         min="1"
                         value={newCert.duracionMeses}
-                        onChange={(e) => setNewCert((p) => ({ ...p, duracionMeses: e.target.value }))}
+                        onChange={(e) => {
+                          const dm = e.target.value;
+                          setNewCert((p) => {
+                            const updated = { ...p, duracionMeses: dm };
+                            if (p.fechaEmision && dm) {
+                              const d = new Date(p.fechaEmision);
+                              d.setMonth(d.getMonth() + parseInt(dm));
+                              updated.vencimiento = d.toISOString().split('T')[0];
+                            }
+                            return updated;
+                          });
+                        }}
                         placeholder="Ej: 12"
                         className={inputCls}
                       />
@@ -547,6 +884,7 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
                       value={newCert.vencimiento}
                       onChange={(e) => setNewCert((p) => ({ ...p, vencimiento: e.target.value }))}
                       className={inputCls}
+                      min={newCert.fechaEmision || undefined}
                     />
                   </Field>
                   <div className="flex gap-2 pt-1">
@@ -688,8 +1026,161 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
             </div>
           )}
 
+          {/* ════ Fallas ════ */}
+          {activeTab === 'fallas' && (
+            <div className="px-6 py-5 space-y-4">
+              {/* Estado operativo */}
+              <div className={`flex items-center justify-between p-4 rounded-xl border ${equipo.estadoOperativo === 'NO_OPERATIVO' ? 'bg-red-50 border-red-200' : 'bg-emerald-50 border-emerald-200'}`}>
+                <div className="flex items-center gap-3">
+                  <div className={`w-3 h-3 rounded-full ${equipo.estadoOperativo === 'NO_OPERATIVO' ? 'bg-red-500 animate-pulse' : 'bg-emerald-500'}`} />
+                  <div>
+                    <p className={`text-sm font-bold ${equipo.estadoOperativo === 'NO_OPERATIVO' ? 'text-red-800' : 'text-emerald-800'}`}>
+                      {equipo.estadoOperativo === 'NO_OPERATIVO' ? 'Equipo No Operativo' : 'Equipo Operativo'}
+                    </p>
+                    <p className="text-xs text-slate-500 mt-0.5">{fallasAbiertas.length} falla{fallasAbiertas.length !== 1 ? 's' : ''} abierta{fallasAbiertas.length !== 1 ? 's' : ''}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={handleToggleEstado}
+                  disabled={estadoSaving}
+                  className={`px-4 py-2 text-xs font-bold rounded-xl transition-colors disabled:opacity-50 ${equipo.estadoOperativo === 'NO_OPERATIVO'
+                    ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                    : 'bg-red-100 text-red-700 hover:bg-red-200'
+                    }`}
+                >
+                  {estadoSaving ? '...' : equipo.estadoOperativo === 'NO_OPERATIVO' ? 'Marcar Operativo' : 'Marcar No Operativo'}
+                </button>
+              </div>
+
+              {/* KPIs fallas */}
+              <div className="grid grid-cols-4 gap-3">
+                {[
+                  { label: 'Total', val: fallas.length, color: 'bg-slate-50 text-slate-700 border-slate-200' },
+                  { label: 'Abiertas', val: fallas.filter(f => f.estado === 'ABIERTA').length, color: 'bg-orange-50 text-orange-700 border-orange-200' },
+                  { label: 'En Proceso', val: fallas.filter(f => f.estado === 'EN_PROCESO').length, color: 'bg-blue-50 text-blue-700 border-blue-200' },
+                  { label: 'Resueltas', val: fallas.filter(f => f.estado === 'RESUELTA').length, color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+                ].map(({ label, val, color }) => (
+                  <div key={label} className={`border rounded-xl p-3 text-center ${color}`}>
+                    <p className="text-2xl font-bold">{val}</p>
+                    <p className="text-xs font-semibold mt-0.5">{label}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Lista de fallas */}
+              {fallas.length === 0 && !showFallaForm && (
+                <div className="py-10 text-center">
+                  <svg className="w-8 h-8 text-slate-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <p className="text-sm text-slate-400">Sin fallas registradas</p>
+                </div>
+              )}
+
+              {fallas.map((falla) => {
+                const sevCfg = {
+                  BAJA: { bg: 'bg-blue-100 text-blue-700', dot: 'bg-blue-500' },
+                  MEDIA: { bg: 'bg-amber-100 text-amber-700', dot: 'bg-amber-500' },
+                  ALTA: { bg: 'bg-orange-100 text-orange-700', dot: 'bg-orange-500' },
+                  CRITICA: { bg: 'bg-red-100 text-red-700', dot: 'bg-red-500' },
+                }[falla.severidad] ?? { bg: 'bg-slate-100 text-slate-600', dot: 'bg-slate-400' };
+                const estCfg = {
+                  ABIERTA: 'bg-orange-100 text-orange-700',
+                  EN_PROCESO: 'bg-blue-100 text-blue-700',
+                  RESUELTA: 'bg-emerald-100 text-emerald-700',
+                }[falla.estado] ?? 'bg-slate-100 text-slate-600';
+
+                return (
+                  <div key={falla.id} className={`border rounded-2xl p-4 ${falla.estado === 'RESUELTA' ? 'border-slate-100 bg-slate-50/40 opacity-70' : 'border-slate-200 bg-white'}`}>
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${sevCfg.bg}`}>{falla.severidad}</span>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${estCfg}`}>{falla.estado}</span>
+                      </div>
+                      <span className="text-xs text-slate-400">{fmtDate(falla.fecha)}</span>
+                    </div>
+                    <p className="text-sm text-slate-700 mb-2">{falla.descripcion}</p>
+                    {falla.solucion && (
+                      <p className="text-xs text-emerald-600 bg-emerald-50 rounded-lg px-3 py-2 mb-2">
+                        <span className="font-bold">Solución:</span> {falla.solucion}
+                      </p>
+                    )}
+                    {falla.fechaResolucion && (
+                      <p className="text-xs text-slate-400">Resuelta el {fmtDate(falla.fechaResolucion)}</p>
+                    )}
+                    {falla.estado !== 'RESUELTA' && (
+                      <div className="flex gap-2 mt-3">
+                        {falla.estado === 'ABIERTA' && (
+                          <button onClick={() => handleUpdateFalla(falla.id, { estado: 'EN_PROCESO' })} className="px-3 py-1.5 text-xs font-semibold bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors">En Proceso</button>
+                        )}
+                        <button
+                          onClick={() => {
+                            const solucion = prompt('Describe la solución aplicada:');
+                            if (solucion) handleUpdateFalla(falla.id, { estado: 'RESUELTA', solucion });
+                          }}
+                          className="px-3 py-1.5 text-xs font-semibold bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 transition-colors"
+                        >✓ Resolver</button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+              {/* Formulario nueva falla */}
+              {showFallaForm ? (
+                <div className="border border-orange-200 rounded-2xl p-5 space-y-3 bg-orange-50/40">
+                  <p className="text-sm font-bold text-slate-900">Registrar Nueva Falla</p>
+                  <Field label="Descripción de la falla">
+                    <textarea
+                      value={newFalla.descripcion}
+                      onChange={(e) => setNewFalla(p => ({ ...p, descripcion: e.target.value }))}
+                      rows={3}
+                      className={`${inputCls} resize-none`}
+                      placeholder="Describe la falla detectada..."
+                    />
+                  </Field>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Severidad">
+                      <select value={newFalla.severidad} onChange={(e) => setNewFalla(p => ({ ...p, severidad: e.target.value }))} className={selectCls}>
+                        <option value="BAJA">Baja</option>
+                        <option value="MEDIA">Media</option>
+                        <option value="ALTA">Alta</option>
+                        <option value="CRITICA">Crítica</option>
+                      </select>
+                    </Field>
+                    <Field label="Fecha">
+                      <input type="date" value={newFalla.fecha} onChange={(e) => setNewFalla(p => ({ ...p, fecha: e.target.value }))} className={inputCls} />
+                    </Field>
+                  </div>
+                  {(newFalla.severidad === 'ALTA' || newFalla.severidad === 'CRITICA') && (
+                    <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-xl">
+                      <svg className="w-4 h-4 text-red-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                      </svg>
+                      <p className="text-xs text-red-700">Una falla <strong>{newFalla.severidad}</strong> marcará automáticamente el equipo como <strong>No Operativo</strong>.</p>
+                    </div>
+                  )}
+                  <div className="flex gap-2 pt-1">
+                    <button onClick={handleAddFalla} disabled={fallaSaving} className="flex-1 py-2 bg-slate-900 text-white text-sm font-bold rounded-xl hover:bg-slate-800 transition-colors disabled:opacity-60">
+                      {fallaSaving ? 'Guardando...' : 'Registrar Falla'}
+                    </button>
+                    <button onClick={() => setShowFallaForm(false)} className="px-4 py-2 border border-slate-200 text-slate-500 text-sm font-semibold rounded-xl hover:bg-slate-50 transition-colors">Cancelar</button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowFallaForm(true)}
+                  className="w-full py-3 border-2 border-dashed border-slate-200 hover:border-orange-400 hover:bg-orange-50 text-slate-400 hover:text-orange-600 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                  Registrar Falla
+                </button>
+              )}
+            </div>
+          )}
+
         </div>
-      </div>
+      </div >
     </>
   );
 };

@@ -78,7 +78,12 @@ export const getMantenimientoById = async (req, res) => {
 /* ── POST /api/mantenimientos ── */
 export const createMantenimiento = async (req, res) => {
     try {
-        const { equipoId, fechaServicio, lecturaActual, observaciones, costoTotal, tipoId } = req.body;
+        const { equipoId, fechaServicio, lecturaActual, observaciones, costoManoObra, costoServicios, costoRepuestos, costoTotal, tipoId, reiniciarHoras, planId } = req.body;
+
+        const manoObra = costoManoObra != null ? Number(costoManoObra) : 0;
+        const servicios = costoServicios != null ? Number(costoServicios) : 0;
+        const repuestos = costoRepuestos != null ? Number(costoRepuestos) : 0;
+        const totalCalculado = manoObra + servicios + repuestos;
 
         const registro = await prisma.registroMantenimiento.create({
             data: {
@@ -86,11 +91,31 @@ export const createMantenimiento = async (req, res) => {
                 fechaServicio: new Date(fechaServicio),
                 lecturaActual: Number(lecturaActual),
                 observaciones: observaciones ?? null,
-                costoTotal: costoTotal != null ? Number(costoTotal) : null,
+                costoManoObra: manoObra || null,
+                costoServicios: servicios || null,
+                costoRepuestos: repuestos || null,
+                costoTotal: costoTotal != null ? Number(costoTotal) : (totalCalculado > 0 ? totalCalculado : null),
                 tipoId: Number(tipoId),
             },
             include: INCLUDE_MANT,
         });
+
+        // Si se especifica un planId, marcar ESE plan como ejecutado
+        // La base del plan se actualiza al horómetro actual del equipo
+        // Las horas acumuladas del equipo NUNCA se reinician (es un horómetro total)
+        if (planId) {
+            const equipo = await prisma.equipo.findUnique({
+                where: { id: Number(equipoId) },
+                select: { horasAcumuladas: true },
+            });
+            await prisma.planPreventivo.update({
+                where: { id: Number(planId) },
+                data: {
+                    horasUltimaEjecucion: equipo?.horasAcumuladas ?? 0,
+                    fechaUltimaEjecucion: new Date(),
+                },
+            });
+        }
 
         return res.status(201).json({ ok: true, data: registro });
     } catch (err) {
@@ -102,17 +127,31 @@ export const createMantenimiento = async (req, res) => {
 /* ── PUT /api/mantenimientos/:id ── */
 export const updateMantenimiento = async (req, res) => {
     try {
-        const { fechaServicio, lecturaActual, observaciones, costoTotal, tipoId } = req.body;
+        const { fechaServicio, lecturaActual, observaciones, costoManoObra, costoServicios, costoRepuestos, costoTotal, tipoId } = req.body;
+
+        let data = {
+            ...(fechaServicio ? { fechaServicio: new Date(fechaServicio) } : {}),
+            ...(lecturaActual != null ? { lecturaActual: Number(lecturaActual) } : {}),
+            ...(observaciones !== undefined ? { observaciones } : {}),
+            ...(costoManoObra !== undefined ? { costoManoObra: costoManoObra != null ? Number(costoManoObra) : null } : {}),
+            ...(costoServicios !== undefined ? { costoServicios: costoServicios != null ? Number(costoServicios) : null } : {}),
+            ...(costoRepuestos !== undefined ? { costoRepuestos: costoRepuestos != null ? Number(costoRepuestos) : null } : {}),
+            ...(tipoId != null ? { tipoId: Number(tipoId) } : {}),
+        };
+
+        if ((costoManoObra !== undefined || costoServicios !== undefined || costoRepuestos !== undefined) && costoTotal === undefined) {
+            const manoObra = costoManoObra != null ? Number(costoManoObra) : 0;
+            const servicios = costoServicios != null ? Number(costoServicios) : 0;
+            const repuestos = costoRepuestos != null ? Number(costoRepuestos) : 0;
+            const totalCalculado = manoObra + servicios + repuestos;
+            if (totalCalculado > 0) data.costoTotal = totalCalculado;
+        } else if (costoTotal !== undefined) {
+            data.costoTotal = costoTotal != null ? Number(costoTotal) : null;
+        }
 
         const registro = await prisma.registroMantenimiento.update({
             where: { id: Number(req.params.id) },
-            data: {
-                ...(fechaServicio ? { fechaServicio: new Date(fechaServicio) } : {}),
-                ...(lecturaActual != null ? { lecturaActual: Number(lecturaActual) } : {}),
-                ...(observaciones !== undefined ? { observaciones } : {}),
-                ...(costoTotal !== undefined ? { costoTotal: costoTotal != null ? Number(costoTotal) : null } : {}),
-                ...(tipoId != null ? { tipoId: Number(tipoId) } : {}),
-            },
+            data,
             include: INCLUDE_MANT,
         });
 
@@ -146,7 +185,38 @@ export const getPlanes = async (req, res) => {
                 equipo: { include: { marca: true, tipo: true, ubicacion: true, parametro: true } },
             },
         });
-        return res.json({ ok: true, data: planes });
+
+        // Calcular alerta con flujo: Meta = horasUltimaEjecucion + frecuencia
+        // Umbral = 10% de frecuencia (mínimo 2h)
+        // Alerta cuando horasEquipo >= Meta - Umbral
+        const planesConAlerta = planes.map(plan => {
+            const horasEquipo = plan.equipo?.horasAcumuladas ?? 0;
+            const base = plan.horasUltimaEjecucion ?? 0;
+            const frecuencia = plan.frecuenciaValor;
+            const meta = base + frecuencia;
+            const umbral = Math.max(2, Math.round(frecuencia * 0.1));
+            const horasRestantes = meta - horasEquipo;
+            const porcentaje = frecuencia > 0
+                ? ((horasEquipo - base) / frecuencia) * 100
+                : 0;
+
+            let nivelAlerta = 'normal';
+            if (horasEquipo >= meta) nivelAlerta = 'critico';                   // Ya pasó la meta
+            else if (horasEquipo >= meta - umbral) nivelAlerta = 'advertencia'; // Dentro del umbral
+            else if (porcentaje >= 70) nivelAlerta = 'precaucion';              // >70% avance
+
+            return {
+                ...plan,
+                meta,
+                umbral,
+                horasEquipo,
+                horasRestantes: Math.max(0, horasRestantes),
+                porcentajeAvance: Math.min(100, Math.max(0, porcentaje)),
+                nivelAlerta,
+            };
+        });
+
+        return res.json({ ok: true, data: planesConAlerta });
     } catch (err) {
         console.error(err);
         return res.status(500).json({ ok: false, message: "Error obteniendo planes" });
@@ -157,11 +227,20 @@ export const getPlanes = async (req, res) => {
 export const createPlan = async (req, res) => {
     try {
         const { equipoId, descripcionTarea, frecuenciaValor } = req.body;
+
+        // Obtener horas actuales del equipo para registrar como punto de inicio
+        const equipo = await prisma.equipo.findUnique({
+            where: { id: Number(equipoId) },
+            select: { horasAcumuladas: true },
+        });
+
         const plan = await prisma.planPreventivo.create({
             data: {
                 equipoId: Number(equipoId),
                 descripcionTarea,
                 frecuenciaValor: Number(frecuenciaValor),
+                horasUltimaEjecucion: equipo?.horasAcumuladas ?? 0,
+                fechaUltimaEjecucion: new Date(),
             },
             include: { equipo: { include: { parametro: true } } },
         });
@@ -175,13 +254,27 @@ export const createPlan = async (req, res) => {
 /* ── PUT /api/planes/:id ── */
 export const updatePlan = async (req, res) => {
     try {
-        const { descripcionTarea, frecuenciaValor } = req.body;
+        const { descripcionTarea, frecuenciaValor, marcarEjecutado } = req.body;
+
+        let data = {
+            ...(descripcionTarea ? { descripcionTarea } : {}),
+            ...(frecuenciaValor != null ? { frecuenciaValor: Number(frecuenciaValor) } : {}),
+        };
+
+        // Si se marca como ejecutado, actualizar la base de ESTE plan al horómetro actual
+        // Las horas del equipo NO se reinician (múltiples planes comparten el mismo horómetro)
+        if (marcarEjecutado) {
+            const planExistente = await prisma.planPreventivo.findUnique({
+                where: { id: Number(req.params.id) },
+                include: { equipo: { select: { horasAcumuladas: true } } },
+            });
+            data.horasUltimaEjecucion = planExistente?.equipo?.horasAcumuladas ?? 0;
+            data.fechaUltimaEjecucion = new Date();
+        }
+
         const plan = await prisma.planPreventivo.update({
             where: { id: Number(req.params.id) },
-            data: {
-                ...(descripcionTarea ? { descripcionTarea } : {}),
-                ...(frecuenciaValor != null ? { frecuenciaValor: Number(frecuenciaValor) } : {}),
-            },
+            data,
             include: { equipo: { include: { parametro: true } } },
         });
         return res.json({ ok: true, data: plan });

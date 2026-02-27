@@ -2,16 +2,16 @@
 import { useEffect, useRef } from 'react';
 
 const TIPO_CONFIG = {
-  umbral:      { icon: '⏱', bg: 'bg-amber-100', text: 'text-amber-700',  dot: 'bg-amber-500',   label: 'Umbral' },
-  correctivo:  { icon: '⚠️', bg: 'bg-red-100',   text: 'text-red-700',    dot: 'bg-red-500',     label: 'Correctivo' },
-  certificado: { icon: '📋', bg: 'bg-orange-100',text: 'text-orange-700', dot: 'bg-orange-500',  label: 'Certificado' },
-  predictivo:  { icon: '📊', bg: 'bg-cyan-100',  text: 'text-cyan-700',   dot: 'bg-cyan-500',    label: 'Predictivo' },
-  ot_cerrada:  { icon: '✅', bg: 'bg-emerald-100',text: 'text-emerald-700',dot: 'bg-emerald-500', label: 'Completado' },
+  umbral: { icon: 'H', bg: 'bg-amber-100', text: 'text-amber-700', dot: 'bg-amber-500', label: 'Umbral' },
+  correctivo: { icon: 'F', bg: 'bg-red-100', text: 'text-red-700', dot: 'bg-red-500', label: 'Correctivo' },
+  certificado: { icon: 'C', bg: 'bg-orange-100', text: 'text-orange-700', dot: 'bg-orange-500', label: 'Certificado' },
+  predictivo: { icon: 'P', bg: 'bg-cyan-100', text: 'text-cyan-700', dot: 'bg-cyan-500', label: 'Predictivo' },
+  ot_cerrada: { icon: 'R', bg: 'bg-emerald-100', text: 'text-emerald-700', dot: 'bg-emerald-500', label: 'Completado' },
 };
 
 const FILTER_TABS = [
-  { key: 'all',        label: 'Todas' },
-  { key: 'umbral',     label: 'Umbral' },
+  { key: 'all', label: 'Todas' },
+  { key: 'umbral', label: 'Umbral' },
   { key: 'correctivo', label: 'Fallas' },
   { key: 'predictivo', label: 'Predictivo' },
 ];
@@ -67,9 +67,8 @@ export const NotificacionesPanel = ({ notifs, onClose, onMarcarLeidas, onClickNo
               <button
                 key={f.key}
                 onClick={() => setActiveFilter(f.key)}
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold transition-colors ${
-                  activeFilter === f.key ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                }`}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold transition-colors ${activeFilter === f.key ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                  }`}
               >
                 {f.label}
                 <span className={`text-[10px] font-bold px-1 rounded-full ${activeFilter === f.key ? 'bg-white/20 text-white' : 'bg-white text-slate-500'}`}>
