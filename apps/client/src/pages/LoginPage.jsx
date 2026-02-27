@@ -33,19 +33,13 @@ export const LoginPage = () => {
         return;
       }
 
-      // Guarda token y usuario completo
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
 
-      console.log(data.user);
-
-      // Redirige según rol
       if (data.user.rol === 'ADMIN') {
         navigate('/admin', { replace: true });
-      } else if (data.user.rol === 'USER') {
-        navigate('/app', { replace: true });
       } else {
-        navigate('/app', { replace: true }); // fallback
+        navigate('/app', { replace: true });
       }
     } catch (err) {
       setError('Error de conexión. Intenta nuevamente.');
@@ -55,27 +49,60 @@ export const LoginPage = () => {
   };
 
   return (
-    <div className="bg-white min-h-screen flex items-center justify-center p-4">
-      <div className="w-full max-w-[440px]">
-        <div className="bg-white rounded-xl shadow-[0_4px_20px_rgba(0,0,0,0.05)] p-8 md:p-10 border border-neutral-100">
-          <div className="flex flex-col items-center mb-10">
-            <div className="bg-[#ec5b13]/10 p-3 rounded-xl mb-4 w-16 h-16 flex items-center justify-center">
-              <span className="text-[#ec5b13] text-xs font-bold">LOGO</span>
+    <div className="min-h-screen w-full flex">
+      {/* Panel izquierdo — imagen, solo en pantallas lg+ */}
+      <div className="hidden lg:flex lg:w-1/2 relative">
+        <img
+          src="https://images.unsplash.com/photo-1581094794329-c8112a89af12?auto=format&fit=crop&w=1200&q=80"
+          alt="Planta industrial"
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+        {/* Overlay degradado */}
+        <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/10 to-black/70" />
+        {/* Texto sobre la imagen */}
+        <div className="relative z-10 flex flex-col justify-end p-12 text-white">
+          <h2 className="text-4xl font-bold mb-3">LOGO</h2>
+          <p className="text-white/80 text-lg font-light max-w-xs">
+            Gestión inteligente del mantenimiento industrial.
+          </p>
+        </div>
+      </div>
+
+      {/* Panel derecho — formulario */}
+      <div className="w-full lg:w-1/2 flex flex-col min-h-screen bg-white">
+        {/* Header */}
+        <div className="flex justify-between items-center px-8 md:px-12 py-6">
+          <span className="text-xl font-bold text-neutral-800 tracking-tight">LOGO</span>
+        </div>
+
+        {/* Contenido centrado */}
+        <div className="flex-1 flex flex-col justify-center px-8 md:px-16 lg:px-20 w-full max-w-lg mx-auto pb-12">
+          {/* Logo / ícono */}
+          <div className="mb-10">
+            <div className="bg-[#0047AB]/10 w-14 h-14 flex items-center justify-center rounded-2xl mb-6">
+              {/* Ícono engranaje inline */}
+              <svg className="w-7 h-7 text-[#0047AB]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
+                  d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
+                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
             </div>
-            <p className="text-neutral-500 text-sm mt-1">
-              Gestión de Mantenimiento Industrial
-            </p>
+            <h1 className="text-3xl font-bold text-neutral-900 mb-1">Bienvenido</h1>
+            <p className="text-neutral-400 text-sm">Ingresa tus credenciales para continuar</p>
           </div>
 
+          {/* Error */}
           {error && (
             <div className="mb-6 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
               {error}
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="space-y-2">
-              <label htmlFor="email" className="text-sm font-semibold text-neutral-700 ml-1 block">
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Email */}
+            <div className="space-y-1.5">
+              <label htmlFor="email" className="text-sm font-semibold text-neutral-700 block">
                 Correo electrónico
               </label>
               <input
@@ -87,12 +114,13 @@ export const LoginPage = () => {
                 placeholder="ejemplo@empresa.com"
                 required
                 disabled={loading}
-                className="w-full h-12 px-4 bg-[#F3F4F6] border-0 rounded-lg text-neutral-800 placeholder:text-neutral-400 focus:ring-0 focus:outline-none focus:bg-[#E5E7EB] transition-colors duration-200"
+                className="w-full h-12 px-4 bg-[#F3F4F6] border-0 rounded-xl text-neutral-800 placeholder:text-neutral-400 focus:ring-2 focus:ring-[#0047AB]/30 focus:outline-none focus:bg-[#E5E7EB] transition-colors duration-200 text-sm"
               />
             </div>
 
-            <div className="space-y-2">
-              <label htmlFor="password" className="text-sm font-semibold text-neutral-700 ml-1 block">
+            {/* Password */}
+            <div className="space-y-1.5">
+              <label htmlFor="password" className="text-sm font-semibold text-neutral-700 block">
                 Contraseña
               </label>
               <div className="relative">
@@ -105,7 +133,7 @@ export const LoginPage = () => {
                   placeholder="••••••••"
                   required
                   disabled={loading}
-                  className="w-full h-12 px-4 pr-12 bg-[#F3F4F6] border-0 rounded-lg text-neutral-800 placeholder:text-neutral-400 focus:ring-0 focus:outline-none focus:bg-[#E5E7EB] transition-colors duration-200"
+                  className="w-full h-12 px-4 pr-12 bg-[#F3F4F6] border-0 rounded-xl text-neutral-800 placeholder:text-neutral-400 focus:ring-2 focus:ring-[#0047AB]/30 focus:outline-none focus:bg-[#E5E7EB] transition-colors duration-200 text-sm"
                 />
                 <button
                   type="button"
@@ -127,26 +155,29 @@ export const LoginPage = () => {
               </div>
             </div>
 
-            <div className="flex justify-end text-sm">
-              <a href="#" className="text-[#0047AB] font-medium hover:underline">
+            {/* Olvidaste contraseña */}
+            <div className="flex justify-end">
+              <a href="#" className="text-sm font-medium text-[#0047AB] hover:underline">
                 ¿Olvidaste tu contraseña?
               </a>
             </div>
 
+            {/* Submit */}
             <button
               type="submit"
               disabled={loading}
-              className="w-full h-12 bg-[#0047AB] hover:bg-[#003d96] disabled:bg-neutral-400 text-white font-bold rounded-lg shadow-md transition-all active:scale-[0.98] focus:ring-2 focus:ring-[#0047AB]/50"
+              className="w-full h-12 bg-[#0047AB] hover:bg-[#003d96] disabled:bg-neutral-300 text-white font-semibold rounded-xl shadow-md shadow-[#0047AB]/20 transition-all active:scale-[0.98] focus:ring-2 focus:ring-[#0047AB]/40 text-sm"
             >
-              {loading ? 'Iniciando...' : 'Iniciar Sesión'}
+              {loading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
             </button>
           </form>
-        </div>
 
-        <div className="mt-8 text-center">
-          <p className="text-neutral-500 text-xs">
-            © 2024 CMMS Master Industrial Suite. Todos los derechos reservados.
-          </p>
+          {/* Footer del formulario */}
+          <div className="mt-10 pt-6 border-t border-neutral-100 text-center">
+            <p className="text-xs text-neutral-400">
+              © 2026 Todos los derechos reservados.
+            </p>
+          </div>
         </div>
       </div>
     </div>

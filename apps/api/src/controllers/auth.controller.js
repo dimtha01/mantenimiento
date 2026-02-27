@@ -2,7 +2,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../lib/prisma.js';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change';
+const JWT_SECRET = process.env.JWT_SECRET || '1283764827163B';
 const SALT_ROUNDS = 10;
 
 export const register = async (req, res) => {
