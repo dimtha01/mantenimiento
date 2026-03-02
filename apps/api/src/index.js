@@ -5,6 +5,7 @@ import morgan from 'morgan';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import app from './app.js';
+import { iniciarCronAlertas } from './services/cronAlertas.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -69,4 +70,7 @@ app.use((err, req, res, next) => {
 
 const server = app.listen(PORT, () => {
   logger.info({ port: PORT }, 'Servidor iniciado');
+
+  // Iniciar cron de alertas preventivas (cada hora, ejecutar una vez al inicio)
+  iniciarCronAlertas("0 * * * *", true);
 });

@@ -41,9 +41,9 @@ const INCLUDE_LIST = {
 
 export const getEquipos = async (req, res) => {
   try {
-    const { q = "", take = "100", skip = "0", withDetails = "0", estadoOperativo } = req.query;
+    const { q = "", take = "100", skip = "0", withDetails = "0", estadoOperativo, conFallas } = req.query;
 
-    const where = {
+    const baseWhere = {
       ...(q ? {
         OR: [
           { codigo: { contains: q, mode: "insensitive" } },
@@ -55,19 +55,25 @@ export const getEquipos = async (req, res) => {
           { propietario: { nombre: { contains: q, mode: "insensitive" } } },
         ],
       } : {}),
+    };
+
+    const filterWhere = {
+      ...baseWhere,
       ...(estadoOperativo ? { estadoOperativo } : {}),
+      ...(conFallas === "1" ? { fallas: { some: { estado: { not: "RESUELTA" } } } } : {}),
     };
 
     const equipos = await prisma.equipo.findMany({
-      where,
+      where: filterWhere,
       take: Math.min(parseInt(take) || 100, 500),
       skip: parseInt(skip) || 0,
       orderBy: { id: "desc" },
       include: withDetails === "1" ? INCLUDE_FULL : INCLUDE_LIST,
     });
 
-    const [total, porTipo, totalOperativos, totalNoOperativos] = await Promise.all([
-      prisma.equipo.count({ where }),
+    const [totalFilter, totalGlobal, porTipo, totalOperativos, totalNoOperativos, totalConFallas] = await Promise.all([
+      prisma.equipo.count({ where: filterWhere }),
+      prisma.equipo.count({ where: baseWhere }),
       prisma.registroMantenimiento.groupBy({
         by: ["tipoId"],
         _count: { tipoId: true },
@@ -77,8 +83,9 @@ export const getEquipos = async (req, res) => {
           },
         },
       }),
-      prisma.equipo.count({ where: { ...where, estadoOperativo: "OPERATIVO" } }),
-      prisma.equipo.count({ where: { ...where, estadoOperativo: "NO_OPERATIVO" } }),
+      prisma.equipo.count({ where: { ...baseWhere, estadoOperativo: "OPERATIVO" } }),
+      prisma.equipo.count({ where: { ...baseWhere, estadoOperativo: "NO_OPERATIVO" } }),
+      prisma.equipo.count({ where: { ...baseWhere, fallas: { some: { estado: { not: "RESUELTA" } } } } }),
     ]);
 
     const tiposMant = await prisma.tipoMantenimiento.findMany();
@@ -92,9 +99,11 @@ export const getEquipos = async (req, res) => {
     });
 
     const kpis = {
-      total,
+      total: totalGlobal,
+      totalFilter,
       totalOperativos,
       totalNoOperativos,
+      totalConFallas,
       equiposConAlertaHoras: equiposConAlerta.length,
       porTipoMantenimiento: porTipo.map((g) => ({
         tipo: tipoMap[g.tipoId] ?? "DESCONOCIDO",
@@ -130,7 +139,7 @@ const toId = (v) => (v !== '' && v != null && !isNaN(Number(v)) ? Number(v) : un
 
 export const createEquipo = async (req, res) => {
   try {
-    const { codigo, modelo, serial, factura, marcaId, tipoId, unidadNegocioId, propietarioId, parametroId, horasMantenimientoPreventivo } = req.body;
+    const { codigo, modelo, serial, factura, marcaId, tipoId, unidadNegocioId, propietarioId, parametroId, horasMantenimientoPreventivo, fichaTecnica } = req.body;
 
     // Helper function inside to safely get or create
     const resolveId = async (modelName, value, columnName = 'nombre') => {
@@ -149,6 +158,15 @@ export const createEquipo = async (req, res) => {
     const prop_id = await resolveId('propietario', propietarioId);
     const param_id = toId(parametroId);
 
+    // Validar ficha técnica si viene
+    let fichaTecnicaData = [];
+    if (fichaTecnica) {
+      fichaTecnicaData = validarFichaTecnica(fichaTecnica);
+      if (fichaTecnicaData === null) {
+        return res.status(400).json({ ok: false, message: 'La ficha técnica debe ser un array de objetos con las propiedades "clave" y "valor"' });
+      }
+    }
+
     const data = {
       codigo, modelo, serial,
       factura: factura ?? false,
@@ -158,6 +176,7 @@ export const createEquipo = async (req, res) => {
       propietarioId: prop_id,
       parametroId: param_id,
       horasMantenimientoPreventivo: horasMantenimientoPreventivo ? Number(horasMantenimientoPreventivo) : 0,
+      fichaTecnica: fichaTecnicaData,
     };
 
     // Campos obligatorios
@@ -180,7 +199,7 @@ export const createEquipo = async (req, res) => {
 
 export const updateEquipo = async (req, res) => {
   try {
-    const { codigo, modelo, serial, factura, marcaId, tipoId, unidadNegocioId, propietarioId, parametroId, horasMantenimientoPreventivo, estadoOperativo } = req.body;
+    const { codigo, modelo, serial, factura, marcaId, tipoId, unidadNegocioId, propietarioId, parametroId, horasMantenimientoPreventivo, estadoOperativo, fichaTecnica, horometroActual } = req.body;
 
     const resolveId = async (modelName, value, columnName = 'nombre') => {
       if (!value) return undefined;
@@ -198,6 +217,15 @@ export const updateEquipo = async (req, res) => {
     const prop_id = await resolveId('propietario', propietarioId);
     const param_id = toId(parametroId);
 
+    // Validar ficha técnica si viene
+    let fichaTecnicaData = undefined;
+    if (fichaTecnica !== undefined) {
+      fichaTecnicaData = validarFichaTecnica(fichaTecnica);
+      if (fichaTecnicaData === null) {
+        return res.status(400).json({ ok: false, message: 'La ficha técnica debe ser un array de objetos con las propiedades "clave" y "valor"' });
+      }
+    }
+
     const data = {
       codigo, modelo, serial,
       factura: factura ?? false,
@@ -208,6 +236,8 @@ export const updateEquipo = async (req, res) => {
       parametroId: param_id,
       ...(horasMantenimientoPreventivo !== undefined ? { horasMantenimientoPreventivo: Number(horasMantenimientoPreventivo) } : {}),
       ...(estadoOperativo ? { estadoOperativo } : {}),
+      ...(fichaTecnicaData !== undefined ? { fichaTecnica: fichaTecnicaData } : {}),
+      ...(horometroActual !== undefined ? { horometroActual: Number(horometroActual) } : {}),
     };
 
     // Quitar campos undefined para no sobrescribir con null
@@ -317,6 +347,7 @@ export const registrarHorasUso = async (req, res) => {
       where: { id: equipoId },
       data: {
         horasAcumuladas: nuevasHoras,
+        horometroActual: nuevasHoras,
         ultimaFechaHoras: new Date(),
       },
       include: INCLUDE_FULL,
@@ -527,5 +558,73 @@ export const updateFalla = async (req, res) => {
   } catch (err) {
     console.error(err);
     return res.status(500).json({ ok: false, message: "Error actualizando falla" });
+  }
+};
+
+/* ── Helpers Ficha Técnica ── */
+const validarFichaTecnica = (ficha) => {
+  try {
+    const arr = Array.isArray(ficha) ? ficha : JSON.parse(ficha);
+    if (!Array.isArray(arr)) return null;
+    // Validar que cada item tenga clave y valor
+    const validos = arr.filter(item =>
+      item && typeof item === 'object' && 'clave' in item && 'valor' in item
+    ).map(item => ({
+      clave: String(item.clave).trim(),
+      valor: String(item.valor).trim(),
+    })).filter(item => item.clave.length > 0);
+    return validos;
+  } catch {
+    return null;
+  }
+};
+
+/* ── GET /api/equipos/:id/ficha-tecnica ── */
+export const getFichaTecnica = async (req, res) => {
+  try {
+    const equipo = await prisma.equipo.findUnique({
+      where: { id: Number(req.params.id) },
+      select: { id: true, codigo: true, modelo: true, fichaTecnica: true },
+    });
+    if (!equipo) {
+      return res.status(404).json({ ok: false, message: 'Equipo no encontrado' });
+    }
+    return res.json({ ok: true, data: equipo.fichaTecnica ?? [] });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ ok: false, message: 'Error obteniendo ficha técnica' });
+  }
+};
+
+/* ── PUT /api/equipos/:id/ficha-tecnica ── */
+export const updateFichaTecnica = async (req, res) => {
+  try {
+    const { fichaTecnica } = req.body;
+
+    if (fichaTecnica === undefined) {
+      return res.status(400).json({ ok: false, message: 'Se requiere el campo fichaTecnica' });
+    }
+
+    const validada = validarFichaTecnica(fichaTecnica);
+    if (validada === null) {
+      return res.status(400).json({
+        ok: false,
+        message: 'La ficha técnica debe ser un array de objetos con las propiedades "clave" y "valor". Ejemplo: [{"clave": "Capacidad Gasoil", "valor": "500L"}]',
+      });
+    }
+
+    const equipo = await prisma.equipo.update({
+      where: { id: Number(req.params.id) },
+      data: { fichaTecnica: validada },
+      include: INCLUDE_FULL,
+    });
+
+    return res.json({ ok: true, data: equipo });
+  } catch (err) {
+    console.error(err);
+    if (err.code === 'P2025') {
+      return res.status(404).json({ ok: false, message: 'Equipo no encontrado' });
+    }
+    return res.status(500).json({ ok: false, message: 'Error actualizando ficha técnica' });
   }
 };
