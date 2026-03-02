@@ -1,0 +1,21 @@
+model AlertaPreventiva {
+    id                   Int      @id @default(autoincrement())
+    equipoId             Int      @map("equipo_id")
+    planId               Int      @map("plan_id")
+    tipo                 String   @default("ADVERTENCIA") // ADVERTENCIA | CRITICO | VENCIDO
+    mensaje              String   @db.Text
+    horasEquipoAlMomento Int      @map("horas_equipo_al_momento")
+    metaHoras            Int      @map("meta_horas")
+    leida                Boolean  @default(false)
+    resuelta             Boolean  @default(false)
+    creadoEn             DateTime @default(now()) @map("creado_en")
+
+    equipo Equipo         @relation(fields: [equipoId], references: [id])
+    plan   PlanPreventivo @relation(fields: [planId], references: [id])
+
+    @@index([equipoId])
+    @@index([planId])
+    @@index([leida])
+    @@index([resuelta])
+    @@map("alertas_preventivas")
+}
