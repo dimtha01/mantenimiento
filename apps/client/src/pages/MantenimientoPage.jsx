@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Sidebar } from '../components/Sidebar';
 import { Header } from '../components/Header';
 import { RegistroDrawer } from '../components/RegistroDrawer';
@@ -304,6 +305,9 @@ export const MantenimientoPage = () => {
   const [showPlanForm, setShowPlanForm] = useState(false);
   const [otDrawer, setOtDrawer] = useState(null);
 
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [initialParamHandled, setInitialParamHandled] = useState(false);
+
   /* ── equipo seleccionado ── */
   const equipoSel = equipos.find(e => e.id === selectedId) ?? null;
 
@@ -318,7 +322,34 @@ export const MantenimientoPage = () => {
       if (!json.ok) throw new Error(json.message);
       const lista = json.data ?? [];
       setEquipos(lista);
-      if (!selectedId && lista.length > 0) setSelectedId(lista[0].id);
+
+      if (!initialParamHandled) {
+        const equipoIdParam = searchParams.get('equipo');
+        const planIdParam = searchParams.get('plan');
+
+        let startEquipoId = null;
+        if (equipoIdParam && Number(equipoIdParam) > 0) {
+          startEquipoId = Number(equipoIdParam);
+        } else if (!selectedId && lista.length > 0) {
+          startEquipoId = lista[0].id;
+        }
+
+        if (startEquipoId) {
+          setSelectedId(startEquipoId);
+        }
+
+        if (planIdParam && Number(planIdParam) > 0) {
+          setActiveTab('registros');
+          setInitialRegPlanId(Number(planIdParam));
+          setShowRegForm(true);
+        }
+
+        // Limpiar para que no se reejecute
+        setSearchParams({}, { replace: true });
+        setInitialParamHandled(true);
+      } else if (!selectedId && lista.length > 0) {
+        setSelectedId(lista[0].id);
+      }
     } catch (e) {
       console.error(e);
     } finally {
@@ -383,13 +414,11 @@ export const MantenimientoPage = () => {
 
   /* ── helpers de acción ── */
   const handleRegistroCreado = (nuevo) => {
-    setRegistros(p => [nuevo, ...p]);
     setShowRegForm(false);
-    // actualizar lectura en el equipo localmente
-    setEquipos(p => p.map(e => e.id === selectedId
-      ? { ...e, mantenimientos: [nuevo, ...(e.mantenimientos ?? [])] }
-      : e
-    ));
+    // Refresco completo para actualizar: alertas, horas acumuladas, 
+    // lecturas y base de los planes preventivos afectados instantáneamente.
+    fetchDetalle(selectedId);
+    fetchEquipos();
   };
 
   const handlePlanGuardado = (plan) => {
@@ -571,7 +600,7 @@ export const MantenimientoPage = () => {
                       <div className="mt-3 flex items-center gap-3 bg-red-50 border border-red-200 rounded-xl px-4 py-2.5">
                         <svg className="w-5 h-5 text-red-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
                         <p className="text-xs text-red-700 font-medium flex-1">
-                          <strong>{vencidos.length} Plande(s) requeridos:</strong> Tienen su mantenimiento vencido. Ejecútelos desde la pestaña de Planes.
+                          <strong>{vencidos.length} Plan(es) requeridos:</strong> Tienen su mantenimiento vencido. Ejecútelos desde la pestaña de Planes.
                         </p>
                       </div>
                     );
@@ -579,7 +608,7 @@ export const MantenimientoPage = () => {
                       <div className="mt-3 flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5">
                         <svg className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                         <p className="text-xs text-amber-700 font-medium flex-1">
-                          <strong>Mantenimientos próximos:</strong> Hay {proximos.length} tarea(s) en su umbral de aviso.
+                          <strong>Mantenimientos próximos:</strong> Hay {proximos.length} tarea(s) en su margen de aviso.
                         </p>
                       </div>
                     );
@@ -757,7 +786,7 @@ export const MantenimientoPage = () => {
                                 <span className="text-xs text-blue-600 font-semibold">Cada {frecuencia}h</span>
                                 {nivel !== 'normal' && (
                                   <span className={`ml-2 text-[9px] font-bold px-1.5 py-0.5 rounded text-white ${nivel === 'critico' ? 'bg-red-500' : nivel === 'advertencia' ? 'bg-amber-500' : 'bg-yellow-500'}`}>
-                                    {nivel === 'critico' ? 'VENCIDO' : nivel === 'advertencia' ? 'UMBRAL' : 'PRÓXIMO'}
+                                    {nivel === 'critico' ? 'VENCIDO' : nivel === 'advertencia' ? 'EN AVISO PREVIO' : 'PRÓXIMO'}
                                   </span>
                                 )}
                               </div>
@@ -776,7 +805,7 @@ export const MantenimientoPage = () => {
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs my-3">
                               <div><p className="text-slate-400">Base</p><p className="font-bold text-slate-700">{base}h</p></div>
                               <div><p className="text-slate-400">Meta</p><p className="font-bold text-blue-700">{meta}h</p></div>
-                              <div><p className="text-slate-400">Umbral</p><p className="font-bold text-amber-600">{umbral}h</p></div>
+                              <div><p className="text-slate-400">Aviso Previo</p><p className="font-bold text-amber-600">{umbral}h</p></div>
                               <div><p className="text-slate-400">Restantes</p><p className={`font-bold ${nivel === 'critico' ? 'text-red-600' : nivel === 'advertencia' ? 'text-amber-600' : 'text-emerald-600'}`}>{horasRestantes}h</p></div>
                             </div>
 

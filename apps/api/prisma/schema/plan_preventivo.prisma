@@ -3,12 +3,14 @@ model PlanPreventivo {
   equipoId         Int    @map("equipo_id")
   descripcionTarea String @map("descripcion_tarea")
   frecuenciaValor  Int    @map("frecuencia_valor")
+  frecuenciaHoras  Int?   @default(0) @map("frecuencia_horas")
 
   // Tracking de ejecución basado en horas
   horasUltimaEjecucion Int?      @default(0) @map("horas_ultima_ejecucion")
   fechaUltimaEjecucion DateTime? @map("fecha_ultima_ejecucion") @db.Date
 
-  equipo Equipo @relation(fields: [equipoId], references: [id])
+  equipo  Equipo             @relation(fields: [equipoId], references: [id])
+  alertas AlertaPreventiva[]
 
   @@index([equipoId])
   @@map("plan_preventivo")

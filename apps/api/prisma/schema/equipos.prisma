@@ -11,9 +11,13 @@ model Equipo {
   propietarioId   Int @map("propietario_id")
   parametroId     Int @map("parametro_id")
 
+  // Ficha técnica dinámica (JSON de pares clave-valor)
+  fichaTecnica Json? @default("[]") @map("ficha_tecnica")
+
   // Campos para control de mantenimiento basado en horas
   horasMantenimientoPreventivo Int?      @default(0) @map("horas_mantenimiento_preventivo")
   horasAcumuladas              Int?      @default(0) @map("horas_acumuladas")
+  horometroActual              Int?      @default(0) @map("horometro_actual")
   ultimaFechaHoras             DateTime? @map("ultima_fecha_horas") @db.Date
 
   // Estado operativo del equipo
@@ -29,6 +33,7 @@ model Equipo {
   planes          PlanPreventivo[]
   mantenimientos  RegistroMantenimiento[]
   fallas          RegistroFalla[]
+  alertas         AlertaPreventiva[]
 
   imagenes Imagen[]
 

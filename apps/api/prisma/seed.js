@@ -34,6 +34,70 @@ const TIPOS_CERT = [
   "Permiso de Operación",
 ];
 
+/* ── Fichas técnicas realistas por tipo de equipo ── */
+const FICHAS_POR_TIPO = {
+  EXCAVADORA: [
+    { clave: "Peso Operacional", valor: "22,000 kg" },
+    { clave: "Capacidad del Cucharón", valor: "1.2 m³" },
+    { clave: "Potencia del Motor", valor: "173 HP" },
+    { clave: "Capacidad de Gasoil", valor: "410 Litros" },
+    { clave: "Capacidad de Aceite Hidráulico", valor: "230 Litros" },
+    { clave: "Presión Hidráulica Máx.", valor: "350 bar" },
+    { clave: "Profundidad Máx. Excavación", valor: "6.7 m" },
+    { clave: "Tipo de Aceite Motor", valor: "SAE 15W-40" },
+    { clave: "Filtro de Aceite", valor: "1R-0751" },
+    { clave: "Filtro de Combustible", valor: "1R-0762" },
+  ],
+  RETROEXCAVADORA: [
+    { clave: "Peso Operacional", valor: "8,500 kg" },
+    { clave: "Potencia del Motor", valor: "97 HP" },
+    { clave: "Capacidad de Gasoil", valor: "160 Litros" },
+    { clave: "Capacidad de Aceite Motor", valor: "12 Litros" },
+    { clave: "Capacidad Cucharón Frontal", valor: "1.0 m³" },
+    { clave: "Amperaje de Batería", valor: "900 CCA" },
+    { clave: "Voltaje del Sistema", valor: "12V" },
+    { clave: "Tipo de Aceite Hidráulico", valor: "ISO VG 46" },
+    { clave: "Presión de Neumáticos (delanteros)", valor: "35 PSI" },
+    { clave: "Presión de Neumáticos (traseros)", valor: "28 PSI" },
+  ],
+  "GRÚA": [
+    { clave: "Capacidad Máx. de Izaje", valor: "50 Toneladas" },
+    { clave: "Alcance Máx. de Pluma", valor: "40 m" },
+    { clave: "Potencia del Motor", valor: "330 HP" },
+    { clave: "Capacidad de Gasoil", valor: "600 Litros" },
+    { clave: "Capacidad de Aceite Motor", valor: "28 Litros" },
+    { clave: "Contrapeso Total", valor: "12,000 kg" },
+    { clave: "Velocidad de Izaje", valor: "120 m/min" },
+    { clave: "Cable de Acero (diámetro)", valor: "16 mm" },
+    { clave: "Refrigerante", valor: "50/50 Etilenglicol" },
+  ],
+  GENERADOR: [
+    { clave: "Potencia Nominal", valor: "500 kVA" },
+    { clave: "Potencia de Emergencia", valor: "550 kVA" },
+    { clave: "Voltaje de Salida", valor: "480V / 277V" },
+    { clave: "Amperaje Nominal", valor: "601A" },
+    { clave: "Frecuencia", valor: "60 Hz" },
+    { clave: "RPM", valor: "1800" },
+    { clave: "Capacidad de Gasoil", valor: "1,200 Litros" },
+    { clave: "Consumo (75% carga)", valor: "85 L/h" },
+    { clave: "Capacidad de Aceite Motor", valor: "42 Litros" },
+    { clave: "Tipo de Aceite", valor: "SAE 15W-40 CI-4" },
+    { clave: "Filtro de Aire", valor: "AF-26557" },
+    { clave: "Nivel de Ruido", valor: "75 dB(A) @ 7m" },
+  ],
+  COMPRESOR: [
+    { clave: "Capacidad (CFM)", valor: "375 CFM" },
+    { clave: "Presión de Trabajo", valor: "125 PSI" },
+    { clave: "Potencia del Motor", valor: "100 HP" },
+    { clave: "Capacidad de Gasoil", valor: "180 Litros" },
+    { clave: "Capacidad de Aceite", valor: "24 Litros" },
+    { clave: "Tipo de Aceite", valor: "Compressor Oil ISO 46" },
+    { clave: "Filtro de Aceite", valor: "250025-525" },
+    { clave: "Filtro Separador", valor: "250034-085" },
+    { clave: "Temperatura Máx. Operación", valor: "46°C" },
+  ],
+};
+
 async function main() {
   const N_USUARIOS = 25;
   const N_EQUIPOS = 40;
@@ -143,7 +207,9 @@ async function main() {
   });
   await prisma.usuario.createMany({ data: usuariosData, skipDuplicates: true });
 
-  // 5) Equipos con planes, mantenimientos, certificaciones, fallas
+  // 5) Equipos con planes, mantenimientos, certificaciones, fallas, ficha técnica y alertas
+  const equiposCreados = [];
+
   for (let i = 0; i < N_EQUIPOS; i++) {
     const marca = faker.helpers.arrayElement(marcas);
     const tipo = faker.helpers.arrayElement(tipos);
@@ -156,6 +222,7 @@ async function main() {
     // Generar horas realistas
     const horasMantenimiento = faker.helpers.arrayElement([100, 150, 200, 250, 300, 500]);
     const horasAcumuladas = randInt(0, horasMantenimiento + 50); // Algunas pasarán la meta
+    const horometroActual = horasAcumuladas; // Sincronizar horómetro con horas acumuladas
     const estadoOps = ["OPERATIVO", "OPERATIVO", "OPERATIVO", "NO_OPERATIVO"];
 
     const planesN = randInt(PLANES_POR_EQUIPO[0], PLANES_POR_EQUIPO[1]);
@@ -164,7 +231,28 @@ async function main() {
     const imgsN = randInt(IMGS_POR_EQUIPO[0], IMGS_POR_EQUIPO[1]);
     const fallasN = randInt(FALLAS_POR_EQUIPO[0], FALLAS_POR_EQUIPO[1]);
 
-    // Planes preventivos con frecuencias realistas
+    // ── Ficha Técnica Dinámica ──
+    // Obtener ficha base del tipo y tomar un subconjunto aleatorio
+    const fichaBase = FICHAS_POR_TIPO[tipo.nombre] ?? FICHAS_POR_TIPO["GENERADOR"];
+    const numEspecs = randInt(3, fichaBase.length);
+    const fichaSeleccionada = faker.helpers.arrayElements(fichaBase, numEspecs);
+
+    // Agregar alguna especificación extra personalizada aleatoria
+    const extrasAleatorias = [
+      { clave: "Color", valor: faker.helpers.arrayElement(["Amarillo CAT", "Naranja", "Blanco", "Verde JD", "Azul"]) },
+      { clave: "Año de Fabricación", valor: String(randInt(2015, 2024)) },
+      { clave: "País de Origen", valor: faker.helpers.arrayElement(["USA", "Japón", "Alemania", "Brasil", "China"]) },
+      { clave: "N° de Parte Motor", valor: faker.string.alphanumeric({ length: 10 }).toUpperCase() },
+      { clave: "Número de Chasis", valor: faker.vehicle.vin() },
+      { clave: "Capacidad del Tanque Hidráulico", valor: `${randInt(50, 300)} Litros` },
+      { clave: "Tipo de Correa", valor: `${faker.helpers.arrayElement(["A", "B", "C", "V"])}${randInt(30, 80)}` },
+    ];
+    const extrasN = randInt(1, 3);
+    const extrasSeleccionadas = faker.helpers.arrayElements(extrasAleatorias, extrasN);
+
+    const fichaTecnica = [...fichaSeleccionada, ...extrasSeleccionadas];
+
+    // ── Planes preventivos con frecuencias y frecuenciaHoras ──
     const planesData = Array.from({ length: planesN }).map(() => {
       const frecuencia = faker.helpers.arrayElement([10, 20, 50, 100, 150, 250, 500]);
       // La base (horasUltimaEjecucion) es un valor anterior al horómetro actual
@@ -172,6 +260,7 @@ async function main() {
       return {
         descripcionTarea: faker.helpers.arrayElement(TAREAS_PREVENTIVAS),
         frecuenciaValor: frecuencia,
+        frecuenciaHoras: frecuencia, // frecuenciaHoras = frecuenciaValor por defecto
         horasUltimaEjecucion: base,
         fechaUltimaEjecucion: faker.date.recent({ days: 60 }),
       };
@@ -206,7 +295,7 @@ async function main() {
       };
     });
 
-    await prisma.equipo.create({
+    const equipo = await prisma.equipo.create({
       data: {
         codigo,
         modelo: faker.commerce.productName().slice(0, 40),
@@ -219,8 +308,10 @@ async function main() {
         parametroId: param.id,
         horasMantenimientoPreventivo: horasMantenimiento,
         horasAcumuladas,
+        horometroActual,
         ultimaFechaHoras: faker.date.recent({ days: 7 }),
         estadoOperativo: faker.helpers.arrayElement(estadoOps),
+        fichaTecnica,
 
         planes: { create: planesData },
 
@@ -252,7 +343,60 @@ async function main() {
           })),
         },
       },
+      include: {
+        planes: true,
+      },
     });
+
+    equiposCreados.push(equipo);
+  }
+
+  // 6) Generar alertas preventivas simuladas basadas en los equipos creados
+  console.log("📊 Generando alertas preventivas...");
+  let alertasCreadas = 0;
+
+  for (const equipo of equiposCreados) {
+    const horasEquipo = equipo.horometroActual ?? equipo.horasAcumuladas ?? 0;
+
+    for (const plan of equipo.planes) {
+      const base = plan.horasUltimaEjecucion ?? 0;
+      const frecuencia = plan.frecuenciaHoras > 0 ? plan.frecuenciaHoras : plan.frecuenciaValor;
+      const meta = base + frecuencia;
+      const umbral = Math.max(2, Math.round(frecuencia * 0.15));
+      const horasRestantes = meta - horasEquipo;
+
+      let tipoAlerta = null;
+      let mensaje = null;
+
+      if (horasEquipo >= meta) {
+        tipoAlerta = "VENCIDO";
+        mensaje = `⚠️ VENCIDO: El equipo "${equipo.codigo}" superó las ${meta}h (actual: ${horasEquipo}h). Plan: "${plan.descripcionTarea}" requiere ejecución inmediata.`;
+      } else if (horasEquipo >= meta - umbral) {
+        tipoAlerta = "CRITICO";
+        mensaje = `🔴 CRÍTICO: El equipo "${equipo.codigo}" está a ${horasRestantes}h de su meta de ${meta}h. Plan: "${plan.descripcionTarea}".`;
+      } else if (horasEquipo >= meta - umbral * 2) {
+        tipoAlerta = "ADVERTENCIA";
+        mensaje = `🟡 ADVERTENCIA: El equipo "${equipo.codigo}" se acerca a la meta (${horasRestantes}h restantes). Plan: "${plan.descripcionTarea}".`;
+      }
+
+      if (tipoAlerta) {
+        // Crear la alerta con un estado variable (algunas leídas, algunas no)
+        await prisma.alertaPreventiva.create({
+          data: {
+            equipoId: equipo.id,
+            planId: plan.id,
+            tipo: tipoAlerta,
+            mensaje,
+            horasEquipoAlMomento: horasEquipo,
+            metaHoras: meta,
+            leida: faker.datatype.boolean({ probability: 0.3 }), // 30% leídas
+            resuelta: false,
+            creadoEn: faker.date.recent({ days: 7 }),
+          },
+        });
+        alertasCreadas++;
+      }
+    }
   }
 
   // Imagen para admin
@@ -260,7 +404,20 @@ async function main() {
     data: { url: "https://picsum.photos/seed/admin/400/400", usuarioId: admin.id },
   });
 
-  console.log(`✅ Seed completado: ${N_EQUIPOS} equipos con planes, fallas y certificaciones`);
+  // Resumen final
+  const totalAlertas = await prisma.alertaPreventiva.count();
+  const alertasVencidas = await prisma.alertaPreventiva.count({ where: { tipo: "VENCIDO" } });
+  const alertasCriticas = await prisma.alertaPreventiva.count({ where: { tipo: "CRITICO" } });
+  const alertasAdvertencia = await prisma.alertaPreventiva.count({ where: { tipo: "ADVERTENCIA" } });
+  const equiposConFicha = await prisma.equipo.count({ where: { fichaTecnica: { not: { equals: null } } } });
+
+  console.log(`\n✅ Seed completado:`);
+  console.log(`   📦 ${N_EQUIPOS} equipos con planes, fallas y certificaciones`);
+  console.log(`   📋 ${equiposConFicha} equipos con ficha técnica dinámica`);
+  console.log(`   🔔 ${totalAlertas} alertas preventivas generadas:`);
+  console.log(`      ⚠️  ${alertasVencidas} VENCIDAS`);
+  console.log(`      🔴 ${alertasCriticas} CRÍTICAS`);
+  console.log(`      🟡 ${alertasAdvertencia} ADVERTENCIAS`);
 }
 
 main()

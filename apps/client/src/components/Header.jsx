@@ -179,7 +179,7 @@ export const Header = ({
                               if (onNotifClick) {
                                 onNotifClick(n);
                               } else if (n.equipoId) {
-                                window.location.href = `/mantenimiento?equipo=${n.equipoId}`;
+                                window.location.href = `/admin/gestion-equipos?equipo=${n.equipoId}`;
                               }
                               setShowPanel(false);
                             }}

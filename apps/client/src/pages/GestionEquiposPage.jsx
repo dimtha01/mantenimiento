@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Sidebar } from '../components/Sidebar';
 import { Header } from '../components/Header';
 import { EquipoDrawerModal } from '../components/EquipoDrawerModal';
@@ -116,6 +117,14 @@ export const GestionEquiposPage = () => {
   const [error, setError] = useState(null);
   const [selectedEquipo, setSelectedEquipo] = useState(null);
   const [alertasHoras, setAlertasHoras] = useState([]);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // ── Filtro por estado para "No Operativos" ──
+  const [showInactivos, setShowInactivos] = useState(false);
+
+  // ── Alerta global colapsable ──
+  const [alertaGlobalExpanded, setAlertaGlobalExpanded] = useState(false);
+  const [initialEquipoHandled, setInitialEquipoHandled] = useState(false);
 
   // ── Fetch alertas de horas ───────────────────────────────
   const fetchAlertasHoras = useCallback(async () => {
@@ -137,25 +146,38 @@ export const GestionEquiposPage = () => {
       const params = new URLSearchParams({ take: String(PAGE_SIZE), skip: String(skip) });
       if (search) params.set('q', search);
 
+      // Aplicar estado según tab seleccionado 
+      if (activeTab === 'Operativos') params.set('estadoOperativo', 'OPERATIVO');
+      else if (activeTab === 'No Operativos') params.set('estadoOperativo', 'NO_OPERATIVO');
+      else if (activeTab === 'Con Fallas') params.set('conFallas', '1');
+
+      // (El toggle colapsable de inactivos override tab)
+      if (showInactivos && activeTab !== 'No Operativos') {
+        params.set('estadoOperativo', 'NO_OPERATIVO');
+      }
+
       const res = await fetch(`/api/equipos?${params}`);
       const json = await res.json();
       if (!json.ok) throw new Error(json.message);
 
       setEquipos(json.data ?? []);
-      setTotal(json.kpis?.total ?? 0);
-      setKpis(json.kpis ?? { total: 0, totalOperativos: 0, totalNoOperativos: 0, equiposConAlertaHoras: 0, porTipoMantenimiento: [] });
+      setTotal(json.kpis?.totalFilter ?? json.kpis?.total ?? 0);
+      setKpis({
+        ...(json.kpis ?? { total: 0, totalOperativos: 0, totalNoOperativos: 0, equiposConAlertaHoras: 0, porTipoMantenimiento: [] }),
+        totalFilter: json.kpis?.totalFilter ?? json.kpis?.total ?? 0
+      });
     } catch (e) {
       setError(e.message);
       setKpis({ total: 0, totalOperativos: 0, totalNoOperativos: 0, equiposConAlertaHoras: 0, porTipoMantenimiento: [] });
     } finally {
       setLoading(false);
     }
-  }, [search]);
+  }, [search, activeTab, showInactivos]);
 
   // Resetear a pag 1 cuando cambia búsqueda o tab
   useEffect(() => {
     setPage(1);
-  }, [search, activeTab]);
+  }, [search, activeTab, showInactivos]);
 
   // Cargar cuando cambia la página
   useEffect(() => {
@@ -163,25 +185,38 @@ export const GestionEquiposPage = () => {
     return () => clearTimeout(t);
   }, [fetchEquipos, fetchAlertasHoras, page]);
 
+  // ── Abrir drawer del equipo si viene por query param ?equipo=ID ──
+  useEffect(() => {
+    if (initialEquipoHandled || loading) return;
+    const equipoIdParam = searchParams.get('equipo');
+    if (equipoIdParam) {
+      const id = Number(equipoIdParam);
+      if (id > 0) {
+        // Fetch directo del equipo por ID y abrir drawer
+        fetch(`/api/equipos/${id}`)
+          .then(r => r.json())
+          .then(json => {
+            if (json.ok) setSelectedEquipo(json.data);
+          })
+          .catch(() => { });
+        // Limpiar el param de la URL para que no se re-abra al navegar
+        setSearchParams({}, { replace: true });
+      }
+      setInitialEquipoHandled(true);
+    }
+  }, [searchParams, loading, initialEquipoHandled, setSearchParams]);
+
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
-  // ── Filtro por tab (client-side sobre la página actual) ───
-  const filtered = equipos.filter((e) => {
-    if (activeTab === 'Todos') return true;
-    if (activeTab === 'Operativos') return e.estadoOperativo === 'OPERATIVO';
-    if (activeTab === 'No Operativos') return e.estadoOperativo === 'NO_OPERATIVO';
-    if (activeTab === 'Alerta Horas') return horasAlertaBadge(e) !== null;
-    if (activeTab === 'Con Fallas') return (e.fallas?.length ?? 0) > 0;
-    return true;
-  });
+  // Se usa 'equipos' directamente porque el servidor ya devolvió la página filtrada
+  const filtered = equipos;
 
-  // Conteos dinámicos 
+  // Conteos dinámicos del servidor 
   const tabCounts = {
-    'Todos': total,
-    'Operativos': kpis.totalOperativos ?? equipos.filter(e => e.estadoOperativo === 'OPERATIVO').length,
-    'No Operativos': kpis.totalNoOperativos ?? equipos.filter(e => e.estadoOperativo === 'NO_OPERATIVO').length,
-    'Alerta Horas': kpis.equiposConAlertaHoras ?? equipos.filter(e => horasAlertaBadge(e) !== null).length,
-    'Con Fallas': equipos.filter(e => (e.fallas?.length ?? 0) > 0).length,
+    'Todos': kpis.total ?? 0,
+    'Operativos': kpis.totalOperativos ?? 0,
+    'No Operativos': kpis.totalNoOperativos ?? 0,
+    'Con Fallas': kpis.totalConFallas ?? 0,
   };
 
   const kpiCards = [
@@ -246,9 +281,8 @@ export const GestionEquiposPage = () => {
           onMenuClick={() => setSidebarOpen(!sidebarOpen)}
           onNotifClick={(n) => {
             if (n.equipoId) {
-              const alertaEq = equipos.find(e => e.id === n.equipoId);
-              if (alertaEq) handleSelectEquipo(alertaEq);
-              else window.location.href = `/mantenimiento?equipo=${n.equipoId}`;
+              // Intentar abrir drawer directo si estamos en esta página
+              handleSelectEquipo({ id: n.equipoId });
             }
           }}
         />
@@ -261,38 +295,49 @@ export const GestionEquiposPage = () => {
             {/* Alerta global de horas */}
             {alertasHoras.length > 0 && (
               <div className="mb-4 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-4">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3 mb-2">
-                  <div className="w-8 h-8 bg-amber-100 rounded-xl flex items-center justify-center text-amber-600">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <div className="flex flex-col sm:flex-row items-start font-medium text-amber-900 justify-between sm:items-center gap-2 sm:gap-3 mb-2">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-amber-100 rounded-xl flex items-center justify-center text-amber-600">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-amber-900">
+                        {alertasHoras.filter(a => a.nivelAlerta === 'critico').length > 0
+                          ? `${alertasHoras.filter(a => a.nivelAlerta === 'critico').length} alerta(s) crítica(s) de mantenimiento`
+                          : `${alertasHoras.length} alerta(s) de mantenimiento próximas`}
+                      </p>
+                      <p className="text-xs text-amber-700 mt-0.5">Basado en las horas de uso registradas</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm font-bold text-amber-900">
-                      {alertasHoras.filter(a => a.nivelAlerta === 'critico').length > 0
-                        ? `${alertasHoras.filter(a => a.nivelAlerta === 'critico').length} tarea(s) de mantenimiento vencida(s)`
-                        : `${alertasHoras.length} tarea(s) de mantenimiento próximas`}
-                    </p>
-                    <p className="text-xs text-amber-700 mt-0.5">Basado en las horas de uso registradas</p>
+                  <button
+                    onClick={() => setAlertaGlobalExpanded(!alertaGlobalExpanded)}
+                    className="flex text-[10px] items-center gap-1 uppercase font-bold text-amber-600 hover:text-amber-800 bg-amber-100 hover:bg-amber-200 px-3 py-1.5 rounded-lg transition-colors"
+                  >
+                    {alertaGlobalExpanded ? 'Ocultar Lista' : 'Ver Detalles'}
+                  </button>
+                </div>
+
+                {alertaGlobalExpanded && (
+                  <div className="flex gap-2 flex-wrap mt-3 animate-fade-in">
+                    {alertasHoras.slice(0, Math.min(alertasHoras.length, 10)).map(a => (
+                      <button
+                        key={a.planId}
+                        onClick={() => handleSelectEquipo({ id: a.equipoId })}
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${a.nivelAlerta === 'critico'
+                          ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                          : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                          }`}
+                      >
+                        <span>{a.codigo}</span>
+                        <span className="truncate max-w-[120px]">{a.descripcionTarea}</span>
+                        <span className="font-mono">{a.horasRestantes}h</span>
+                      </button>
+                    ))}
+                    {alertasHoras.length > 10 && (
+                      <span className="flex items-center px-3 py-1.5 text-xs font-semibold text-amber-600">+{alertasHoras.length - 10} más</span>
+                    )}
                   </div>
-                </div>
-                <div className="flex gap-2 flex-wrap">
-                  {alertasHoras.slice(0, 5).map(a => (
-                    <button
-                      key={a.planId}
-                      onClick={() => handleSelectEquipo(a)}
-                      className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${a.nivelAlerta === 'critico'
-                        ? 'bg-red-100 text-red-700 hover:bg-red-200'
-                        : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
-                        }`}
-                    >
-                      <span>{a.codigo}</span>
-                      <span className="truncate max-w-[120px]">{a.descripcionTarea}</span>
-                      <span className="font-mono">{a.horasRestantes}h</span>
-                    </button>
-                  ))}
-                  {alertasHoras.length > 5 && (
-                    <span className="flex items-center px-3 py-1.5 text-xs font-semibold text-amber-600">+{alertasHoras.length - 5} más</span>
-                  )}
-                </div>
+                )}
               </div>
             )}
 
@@ -306,7 +351,7 @@ export const GestionEquiposPage = () => {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                   </svg>
                   <input
-                    type="text" placeholder="Buscar código, serie, marca..."
+                    type="text" placeholder="Buscar código, serial, marca..."
                     value={search} onChange={(e) => setSearch(e.target.value)}
                     className="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-300 bg-slate-50"
                   />

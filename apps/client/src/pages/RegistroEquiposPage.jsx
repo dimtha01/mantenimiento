@@ -36,7 +36,7 @@ export const RegistroEquipoPage = () => {
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
-  // Simula un "fetch" al ingresar número de serie
+  // Simula un "fetch" al ingresar número de serial
   const handleSerialBlur = () => {
     if (form.serial_number.trim().length > 4) {
       setIsFetching(true);
@@ -124,7 +124,7 @@ export const RegistroEquipoPage = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
                   <div className="relative">
                     <label className="absolute -top-2 left-3 bg-white px-1 text-xs font-semibold text-emerald-600 z-10">
-                      Número de Serie
+                      Número de Serial
                     </label>
                     <input
                       name="serial_number"
@@ -399,7 +399,7 @@ export const RegistroEquipoPage = () => {
                   {!fetchedData && !isFetching && (
                     <div>
                       <h4 className="text-base font-bold text-slate-900 mb-2">Datos del Equipo</h4>
-                      <p className="text-sm text-slate-500 mb-4">Ingresa el número de serie para obtener los datos técnicos automáticamente.</p>
+                      <p className="text-sm text-slate-500 mb-4">Ingresa el número de serial para obtener los datos técnicos automáticamente.</p>
                       <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
                         <div className="h-full bg-slate-200 rounded-full w-0"></div>
                       </div>

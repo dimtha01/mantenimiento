@@ -2,7 +2,7 @@
 import { useEffect, useRef } from 'react';
 
 const TIPO_CONFIG = {
-  umbral: { icon: 'H', bg: 'bg-amber-100', text: 'text-amber-700', dot: 'bg-amber-500', label: 'Umbral' },
+  umbral: { icon: 'H', bg: 'bg-amber-100', text: 'text-amber-700', dot: 'bg-amber-500', label: 'Aviso Previo' },
   correctivo: { icon: 'F', bg: 'bg-red-100', text: 'text-red-700', dot: 'bg-red-500', label: 'Correctivo' },
   certificado: { icon: 'C', bg: 'bg-orange-100', text: 'text-orange-700', dot: 'bg-orange-500', label: 'Certificado' },
   predictivo: { icon: 'P', bg: 'bg-cyan-100', text: 'text-cyan-700', dot: 'bg-cyan-500', label: 'Predictivo' },
@@ -11,7 +11,7 @@ const TIPO_CONFIG = {
 
 const FILTER_TABS = [
   { key: 'all', label: 'Todas' },
-  { key: 'umbral', label: 'Umbral' },
+  { key: 'umbral', label: 'Aviso Previo' },
   { key: 'correctivo', label: 'Fallas' },
   { key: 'predictivo', label: 'Predictivo' },
 ];
