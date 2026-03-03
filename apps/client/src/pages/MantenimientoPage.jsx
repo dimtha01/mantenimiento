@@ -519,16 +519,9 @@ export const MantenimientoPage = () => {
                       <p className={`text-[11px] ${isActive ? 'text-slate-400' : 'text-slate-400'}`}>
                         {ultimoMant ? fmtDate(ultimoMant.fechaServicio) : 'Sin registros'}
                       </p>
-                      {eq.horasMantenimientoPreventivo > 0 && (
-                        <span className={`text-[10px] font-mono ${isActive ? 'text-slate-300' : 'text-slate-500'}`}>
-                          {eq.horasAcumuladas ?? 0}/{eq.horasMantenimientoPreventivo}h
-                        </span>
-                      )}
-                      {!eq.horasMantenimientoPreventivo && eq.parametro?.unidad && ultimoMant && (
-                        <span className={`text-[10px] font-mono ${isActive ? 'text-slate-300' : 'text-slate-500'}`}>
-                          {ultimoMant.lecturaActual?.toLocaleString()} {eq.parametro.unidad}
-                        </span>
-                      )}
+                      <span className={`text-[10px] font-mono font-semibold ${isActive ? 'text-slate-300' : 'text-slate-500'}`}>
+                        {eq.horasAcumuladas?.toLocaleString() ?? 0} {eq.parametro?.unidad ?? 'h'}
+                      </span>
                     </div>
                   </div>
                 );
@@ -871,7 +864,11 @@ export const MantenimientoPage = () => {
                     const maxVs = Math.max(planificado, noplanificado, 1);
 
                     // Presupuestado vs Real desde planes
-                    const totalEstimado = planes.reduce((s, p) => s + Number(p.costoEstimado ?? 0), 0);
+                    const totalEstimado = planes.reduce((s, p) => {
+                      const horasAct = equipoSel?.horasAcumuladas ?? 0;
+                      const ejecuciones = p.frecuenciaValor > 0 ? Math.floor(horasAct / p.frecuenciaValor) : 1;
+                      return s + (Number(p.costoEstimado ?? 0) * Math.max(1, ejecuciones));
+                    }, 0);
                     const totalReal = totalCosto;
                     const delta = totalReal - totalEstimado;
                     const maxPR = Math.max(totalEstimado, totalReal, 1);
