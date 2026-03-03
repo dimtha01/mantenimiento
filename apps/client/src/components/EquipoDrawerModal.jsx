@@ -557,13 +557,13 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
         )}
 
         {/* ── TABS ── */}
-        <div className="relative border-b border-slate-100 bg-white shrink-0">
-          <div id="drawer-tabs-container" className="flex px-3 sm:px-5 gap-0 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] scroll-smooth">
+        <div className="relative border-b border-slate-100 bg-white shrink-0 group">
+          <div id="drawer-tabs-container" className="flex px-3 sm:px-5 pr-16 pl-12 gap-0 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] scroll-smooth relative z-0">
             {TABS.filter(t => isNew ? t.id === 'general' : true).map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`relative py-2 px-3 sm:px-4 text-sm font-semibold border-b-2 -mb-px transition-colors flex items-center gap-1.5 whitespace-nowrap ${activeTab === tab.id
+                className={`relative py-2 px-3 sm:px-4 text-sm font-semibold border-b-2 -mb-px transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 ${activeTab === tab.id
                   ? 'border-slate-900 text-slate-900'
                   : 'border-transparent text-slate-400 hover:text-slate-600'
                   }`}
@@ -577,17 +577,41 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
               </button>
             ))}
           </div>
+
           {!isNew && (
-            <button
-              onClick={() => {
-                const el = document.getElementById('drawer-tabs-container');
-                if (el) el.scrollLeft += 250;
-              }}
-              className="absolute right-0 top-0 bottom-0 px-2 bg-gradient-to-l from-white via-white/80 to-transparent flex items-center justify-center text-slate-400 hover:text-slate-800 sm:hidden"
-              title="Ver más pestañas"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" /></svg>
-            </button>
+            <>
+              {/* Botón Izquierda */}
+              <button
+                onClick={() => {
+                  const el = document.getElementById('drawer-tabs-container');
+                  if (el) el.scrollBy({ left: -250, behavior: 'smooth' });
+                }}
+                className="absolute left-0 top-0 bottom-0 px-2 bg-gradient-to-r from-white via-white/90 to-transparent flex items-center justify-center text-slate-500 hover:text-slate-900 shadow-[4px_0_8px_-2px_rgba(255,255,255,0.8)] z-10 transition-colors opacity-0 group-hover:opacity-100"
+                title="Desplazar a la izquierda"
+              >
+                <div className="bg-white rounded-full p-1 border border-slate-200 shadow-sm">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
+                  </svg>
+                </div>
+              </button>
+
+              {/* Botón Derecha */}
+              <button
+                onClick={() => {
+                  const el = document.getElementById('drawer-tabs-container');
+                  if (el) el.scrollBy({ left: 250, behavior: 'smooth' });
+                }}
+                className="absolute right-0 top-0 bottom-0 px-2 bg-gradient-to-l from-white via-white/90 to-transparent flex items-center justify-center text-slate-500 hover:text-slate-900 shadow-[-4px_0_8px_-2px_rgba(255,255,255,0.8)] z-10 transition-colors opacity-0 group-hover:opacity-100"
+                title="Desplazar a la derecha"
+              >
+                <div className="bg-white rounded-full p-1 border border-slate-200 shadow-sm">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+                  </svg>
+                </div>
+              </button>
+            </>
           )}
         </div>
 
@@ -612,7 +636,7 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
                 {/* Modelo */}
                 <Field label="Modelo">
                   <input
-                    va lue={form.modelo}
+                    value={form.modelo}
                     onChange={(e) => handleChange('modelo', e.target.value)}
                     placeholder="Ej: 320 GC"
                     className={inputCls}
