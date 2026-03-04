@@ -183,6 +183,19 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
     }
   }, []);
 
+  /* ── auto-seleccionar 'horas' cuando se carguen los catálogos ── */
+  useEffect(() => {
+    if (catalogos.parametros.length > 0 && !form.parametroId) {
+      const horasParam = catalogos.parametros.find(
+        (p) => p.unidad?.toLowerCase().includes('hora')
+      );
+      if (horasParam) {
+        setForm((prev) => ({ ...prev, parametroId: horasParam.id }));
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [catalogos.parametros]);
+
   /* ── abrir / cerrar ────────────────────────────────── */
   const prevEquipoId = useRef(null);
 
@@ -733,7 +746,6 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
                   onChange={(e) => handleChange('parametroId', e.target.value)}
                   className={selectCls}
                 >
-                  <option value="">Seleccionar unidad...</option>
                   {catalogos.parametros.map(p => (
                     <option key={p.id} value={p.id}>{p.unidad}</option>
                   ))}
