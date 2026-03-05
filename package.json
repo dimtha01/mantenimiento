@@ -15,9 +15,13 @@
     "db:pull": "env-cmd -f .env pnpm dlx --package=prisma@6.19.2 prisma db pull --schema=apps/api/prisma/schema",
     "db:generate": "env-cmd -f .env pnpm dlx --package=prisma@6.19.2 prisma generate --schema=apps/api/prisma/schema",
     "db:reset": "env-cmd -f .env pnpm dlx --package=prisma@6.19.2 prisma migrate reset --schema=apps/api/prisma/schema --force",
+    "db:seed": "env-cmd -f .env pnpm --filter=api exec tsx prisma/seed.js",
     "railway:db:migrate": "pnpm dlx --package=prisma@6.19.2 prisma migrate deploy --schema=apps/api/prisma/schema",
     "railway:db:generate": "pnpm dlx --package=prisma@6.19.2 prisma generate --schema=apps/api/prisma/schema",
-    "railway:start": "turbo start --filter=api"
+    "railway:start": "turbo start --filter=api",
+    "cloud:migrate": "pnpm dlx --package=prisma@6.19.2 prisma migrate deploy --schema=apps/api/prisma/schema",
+    "cloud:generate": "pnpm dlx --package=prisma@6.19.2 prisma generate --schema=apps/api/prisma/schema",
+    "cloud:seed": "pnpm --filter=api exec tsx prisma/seed.js"
   },
   "keywords": [],
   "author": "",
