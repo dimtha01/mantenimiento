@@ -68,8 +68,8 @@ app.use((err, req, res, next) => {
   });
 });
 
-const server = app.listen(PORT, () => {
-  logger.info({ port: PORT }, 'Servidor iniciado');
+const server = app.listen(PORT, '0.0.0.0', () => {
+  logger.info({ port: PORT, host: '0.0.0.0' }, 'Servidor iniciado');
 
   // Iniciar cron de alertas preventivas (cada hora, ejecutar una vez al inicio)
   iniciarCronAlertas("0 * * * *", true);
