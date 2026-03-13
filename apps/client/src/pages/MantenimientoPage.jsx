@@ -9,9 +9,9 @@ import * as z from 'zod';
 
 /* ─── Helpers de badge ─────────────────────────────────────────── */
 const TIPO_CFG = {
-  PREVENTIVO: { pill: 'bg-blue-100 text-blue-700 border-blue-200', dot: 'bg-blue-500', label: 'Preventivo' },
-  CORRECTIVO: { pill: 'bg-amber-100 text-amber-700 border-amber-200', dot: 'bg-amber-500', label: 'Correctivo' },
-  PREDICTIVO: { pill: 'bg-cyan-100 text-cyan-700 border-cyan-200', dot: 'bg-cyan-500', label: 'Predictivo' },
+  PREVENTIVO: { pill: 'bg-blue-100 text-blue-700', dot: 'bg-blue-500', label: 'Preventivo' },
+  CORRECTIVO: { pill: 'bg-amber-100 text-amber-700', dot: 'bg-amber-500', label: 'Correctivo' },
+  PREDICTIVO: { pill: 'bg-cyan-100 text-cyan-700', dot: 'bg-cyan-500', label: 'Predictivo' },
 };
 const tipoCfg = (nombre) => TIPO_CFG[nombre] ?? { pill: 'bg-slate-100 text-slate-600', dot: 'bg-slate-400', label: nombre };
 const fmtDate = (iso) => iso ? new Date(iso).toLocaleDateString('es-VE') : '—';
@@ -119,77 +119,62 @@ const RegistroForm = ({ equipoId, tipos, unidad, planes = [], initialPlanId, hor
     }
   };
 
-  const inputCls = 'w-full border border-zinc-200 rounded-lg py-2 px-3 text-sm font-mono focus:outline-none focus:border-zinc-500 focus:ring-1 focus:ring-zinc-500 bg-white placeholder-zinc-400 transition-colors shadow-sm';
+  const inputCls = 'w-full border border-slate-200 rounded-xl py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300 bg-white';
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="border border-zinc-200 rounded-xl p-5 space-y-5 bg-zinc-50">
-      <div className="flex items-center justify-between border-b border-zinc-200 pb-3">
-        <p className="text-sm font-bold text-zinc-900 uppercase tracking-widest">Nuevo Registro de Mantenimiento</p>
-        <span className="text-[10px] font-mono bg-zinc-200 text-zinc-600 px-2 py-0.5 rounded uppercase font-bold tracking-wider">Formulario Técnico</span>
-      </div>
-      {err && <p className="text-xs text-red-500 bg-red-50 border border-red-200 p-2 rounded">{err}</p>}
+    <form onSubmit={handleSubmit(onSubmit)} className="border border-slate-200 rounded-2xl p-5 space-y-4 bg-slate-50">
+      <p className="text-sm font-bold text-slate-900">Nuevo Registro de Mantenimiento</p>
+      {err && <p className="text-xs text-red-500">{err}</p>}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <label className="block text-[11px] font-bold text-zinc-500 uppercase tracking-wider mb-1.5">Tipo <span className="text-red-500">*</span></label>
+          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Tipo <span className="text-red-500">*</span></label>
           <select {...register("tipoId")} className={`${inputCls} ${errors.tipoId ? 'border-red-500 bg-red-50' : ''}`}>
             {tipos.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
           </select>
-          {errors.tipoId && <p className="text-[10px] text-red-500 mt-1 font-mono">{errors.tipoId.message}</p>}
+          {errors.tipoId && <p className="text-[10px] text-red-500 mt-0.5">{errors.tipoId.message}</p>}
         </div>
         <div>
-          <label className="block text-[11px] font-bold text-zinc-500 uppercase tracking-wider mb-1.5">Fecha de Servicio <span className="text-red-500">*</span></label>
+          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Fecha de Servicio <span className="text-red-500">*</span></label>
           <input type="date" max={new Date().toISOString().split('T')[0]} {...register("fechaServicio")} className={`${inputCls} ${errors.fechaServicio ? 'border-red-500 bg-red-50' : ''}`} />
-          {errors.fechaServicio && <p className="text-[10px] text-red-500 mt-1 font-mono">{errors.fechaServicio.message}</p>}
+          {errors.fechaServicio && <p className="text-[10px] text-red-500 mt-0.5">{errors.fechaServicio.message}</p>}
         </div>
       </div>
 
       <div>
-        <label className="block text-[11px] font-bold text-zinc-500 uppercase tracking-wider mb-1.5">Lectura Actual {unidad ? `(${unidad})` : ''} <span className="text-red-500">*</span></label>
-        <input type="number" min={horometroAnterior ?? 0} {...register("lecturaActual")} placeholder="Ej: 1250" className={`${inputCls} max-w-xs ${errors.lecturaActual ? 'border-red-500 bg-red-50' : ''}`} />
-        {errors.lecturaActual && <p className="text-[10px] text-red-500 mt-1 font-mono">{errors.lecturaActual.message}</p>}
+        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Lectura Actual {unidad ? `(${unidad})` : ''} <span className="text-red-500">*</span></label>
+        <input type="number" min={horometroAnterior ?? 0} {...register("lecturaActual")} placeholder="Ej: 1250" className={`${inputCls} ${errors.lecturaActual ? 'border-red-500 bg-red-50' : ''}`} />
+        {errors.lecturaActual && <p className="text-[10px] text-red-500 mt-0.5">{errors.lecturaActual.message}</p>}
       </div>
 
       {/* Costos separados */}
-      <div className="bg-white border border-zinc-200 p-4 rounded-lg">
-        <p className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider mb-3 flex items-center gap-2">
-          <svg className="w-4 h-4 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-          Desglose de Costos (Opcional)
-        </p>
+      <div>
+        <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Desglose de Costos</p>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div>
-            <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1">Mano de Obra</label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 font-mono">$</span>
-              <input type="number" min="0" step="0.01" {...register("costoManoObra")} placeholder="0.00" className={`${inputCls} pl-7`} />
-            </div>
+            <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Mano de Obra</label>
+            <input type="number" min="0" step="0.01" {...register("costoManoObra")} placeholder="$0.00" className={inputCls} />
           </div>
           <div>
-            <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1">Servicios</label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 font-mono">$</span>
-              <input type="number" min="0" step="0.01" {...register("costoServicios")} placeholder="0.00" className={`${inputCls} pl-7`} />
-            </div>
+            <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Servicios</label>
+            <input type="number" min="0" step="0.01" {...register("costoServicios")} placeholder="$0.00" className={inputCls} />
           </div>
           <div>
-            <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1">Repuestos</label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 font-mono">$</span>
-              <input type="number" min="0" step="0.01" {...register("costoRepuestos")} placeholder="0.00" className={`${inputCls} pl-7`} />
-            </div>
+            <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Repuestos</label>
+            <input type="number" min="0" step="0.01" {...register("costoRepuestos")} placeholder="$0.00" className={inputCls} />
           </div>
         </div>
         {calculatedTotal > 0 && (
-          <div className="mt-3 pt-3 border-t border-zinc-100 flex justify-end items-center gap-3">
-            <span className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Suma Calculada:</span>
-            <span className="text-base font-bold text-zinc-900 font-mono bg-zinc-100 px-3 py-1 rounded">${calculatedTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+          <div className="mt-2 p-2 bg-slate-100 rounded-lg flex justify-between items-center">
+            <span className="text-xs font-semibold text-slate-600">Total Calculado:</span>
+            <span className="text-sm font-bold text-slate-900">${calculatedTotal.toLocaleString()}</span>
           </div>
         )}
       </div>
 
       <div>
-        <label className="block text-[11px] font-bold text-zinc-500 uppercase tracking-wider mb-1.5">Observaciones</label>
-        <textarea {...register("observaciones")} rows={2} className={`${inputCls} resize-none`} placeholder="Detalles u observaciones del servicio técnico..." />
+        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Observaciones</label>
+        <textarea {...register("observaciones")} rows={2} className={`${inputCls} resize-none`} placeholder="Detalles del servicio..." />
       </div>
 
       {/* Selector Multi-Repuestos */}
@@ -246,17 +231,17 @@ const RegistroForm = ({ equipoId, tipos, unidad, planes = [], initialPlanId, hor
       )}
 
       {/* Botones */}
-      <div className="flex justify-end gap-3 pt-4 border-t border-zinc-200">
-        <button type="button" onClick={onCancel} className="px-5 py-2 text-sm text-zinc-500 hover:bg-zinc-200 border border-transparent rounded-lg font-bold transition-colors">
+      <div className="flex justify-end gap-2 pt-2">
+        <button type="button" onClick={onCancel} className="px-4 py-2 text-sm text-slate-500 hover:bg-slate-100 rounded-xl font-medium transition-colors">
           Cancelar
         </button>
         <button
           type="submit"
           disabled={saving}
-          className="px-6 py-2 text-sm bg-zinc-900 hover:bg-zinc-800 text-white font-bold rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2 shadow-sm"
+          className="px-5 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-colors disabled:opacity-50 flex items-center gap-2 shadow-sm shadow-blue-600/20"
         >
           {saving && <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>}
-          {saving ? 'Guardando...' : 'Registrar Mantenimiento'}
+          {saving ? 'Guardando...' : 'Guardar Registro'}
         </button>
       </div>
     </form>
@@ -309,12 +294,11 @@ const PlanForm = ({ equipoId, plan, unidad, onGuardado, onCancel }) => {
     }
   };
 
-  const inputCls = 'w-full border border-zinc-200 rounded-lg py-2 px-3 text-sm font-mono focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 bg-white placeholder-zinc-400 transition-colors shadow-sm';
+  const inputCls = 'w-full border border-slate-200 rounded-xl py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300 bg-white';
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="border border-cyan-200 rounded-xl p-5 space-y-5 bg-cyan-50/30 shadow-sm relative overflow-hidden">
-      <div className="absolute top-0 left-0 w-1 h-full bg-cyan-500" />
-      <p className="text-sm font-bold text-cyan-900 uppercase tracking-widest border-b border-cyan-100 pb-2">{isEdit ? 'Editar Plan Preventivo' : 'Nuevo Plan Preventivo'}</p>
+    <form onSubmit={handleSubmit(onSubmit)} className="border border-blue-200 rounded-2xl p-5 space-y-4 bg-blue-50/40">
+      <p className="text-sm font-bold text-slate-900">{isEdit ? 'Editar Plan Preventivo' : 'Nuevo Plan Preventivo'}</p>
       {err && <p className="text-xs text-red-500">{err}</p>}
 
       <div>
@@ -334,12 +318,12 @@ const PlanForm = ({ equipoId, plan, unidad, onGuardado, onCancel }) => {
         </div>
       </div>
 
-      <div className="flex gap-3 pt-4 border-t border-cyan-100">
-        <button type="button" onClick={onCancel} className="px-5 py-2 border border-transparent text-zinc-500 text-sm font-bold rounded-lg hover:bg-zinc-100 transition-colors">
-          Cancelar
+      <div className="flex gap-2 pt-1">
+        <button type="submit" disabled={saving} className="flex-1 py-2 bg-slate-900 text-white text-sm font-bold rounded-xl hover:bg-slate-800 transition-colors disabled:opacity-60">
+          {saving ? 'Guardando...' : isEdit ? 'Actualizar Plan' : 'Crear Plan'}
         </button>
-        <button type="submit" disabled={saving} className="flex-1 py-2 bg-cyan-600 shadow-sm text-white text-sm font-bold rounded-lg hover:bg-cyan-700 transition-colors disabled:opacity-60 uppercase tracking-wider">
-          {saving ? 'Guardando...' : isEdit ? 'Actualizar Plan' : 'Instaurar Plan'}
+        <button type="button" onClick={onCancel} className="px-4 py-2 border border-slate-200 text-slate-500 text-sm font-semibold rounded-xl hover:bg-slate-50 transition-colors">
+          Cancelar
         </button>
       </div>
     </form>
@@ -510,7 +494,7 @@ export const MantenimientoPage = () => {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-zinc-50">
+    <div className="flex h-screen overflow-hidden bg-[#F5F6FA]">
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       <main className="flex-1 flex flex-col overflow-hidden">
@@ -537,19 +521,19 @@ export const MantenimientoPage = () => {
           <div className="w-72 shrink-0 border-r border-slate-200 bg-white flex flex-col overflow-hidden">
             <div className="p-4 border-b border-slate-100 space-y-3">
               <div className="relative">
-                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
                 <input
                   type="text" placeholder="Buscar equipo..."
                   value={search} onChange={e => setSearch(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2 text-sm border border-zinc-200 rounded-lg focus:outline-none focus:border-zinc-400 focus:ring-1 focus:ring-zinc-400 bg-white shadow-sm transition-colors"
+                  className="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-300 bg-slate-50"
                 />
               </div>
               <div className="flex gap-1 flex-wrap">
                 {FILTER_TABS.map(f => (
                   <button key={f.key} onClick={() => setFilterTab(f.key)}
-                    className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-colors border ${filterTab === f.key ? 'bg-zinc-900 text-white border-zinc-900' : 'bg-white text-zinc-600 border-zinc-200 hover:bg-zinc-50'}`}
+                    className={`px-2.5 py-1 rounded-full text-xs font-semibold transition-colors ${filterTab === f.key ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
                   >
                     {f.label}
                   </button>
@@ -570,13 +554,13 @@ export const MantenimientoPage = () => {
                     <div className="flex items-start justify-between gap-2 mb-1">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5">
-                          <span className={`w-2 h-2 rounded-full shrink-0 ${eq.estadoOperativo === 'NO_OPERATIVO' ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]' : 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]'}`} />
-                          <p className={`text-sm font-bold font-mono tracking-tight truncate ${isActive ? 'text-white' : 'text-zinc-900'}`}>{eq.codigo}</p>
+                          <span className={`w-2 h-2 rounded-full shrink-0 ${eq.estadoOperativo === 'NO_OPERATIVO' ? 'bg-red-500' : 'bg-emerald-500'}`} />
+                          <p className={`text-sm font-semibold truncate ${isActive ? 'text-white' : 'text-slate-800'}`}>{eq.codigo}</p>
                         </div>
-                        <p className={`text-[10px] font-mono mt-0.5 truncate uppercase tracking-widest ${isActive ? 'text-zinc-400' : 'text-zinc-500'}`}>{eq.serial} · {eq.modelo}</p>
+                        <p className={`text-xs font-mono mt-0.5 truncate ${isActive ? 'text-slate-300' : 'text-slate-400'}`}>{eq.serial} · {eq.modelo}</p>
                       </div>
                       {ultimoMant && (
-                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border uppercase tracking-wider shrink-0 ${isActive ? 'border-zinc-700 text-zinc-300 bg-zinc-800' : tipoCfg(ultimoMant.tipo?.nombre).pill}`}>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${isActive ? 'bg-white/20 text-white' : cfg.pill}`}>
                           {ultimoMant.tipo?.nombre}
                         </span>
                       )}
@@ -601,7 +585,7 @@ export const MantenimientoPage = () => {
           {/* ── PANEL DERECHO ── */}
           <div className="flex-1 overflow-hidden flex flex-col">
             {!equipoSel ? (
-              <div className="flex-1 flex items-center justify-center text-zinc-400 text-sm font-bold uppercase tracking-widest bg-zinc-50/50">
+              <div className="flex-1 flex items-center justify-center text-slate-400 text-sm">
                 Selecciona un equipo
               </div>
             ) : (
@@ -610,13 +594,13 @@ export const MantenimientoPage = () => {
                 <div className="px-8 py-5 border-b border-slate-100 bg-white shrink-0">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-4">
-                      <div className="w-14 h-14 rounded-xl bg-zinc-900 flex items-center justify-center text-white font-mono font-bold text-2xl shadow-sm shrink-0 border-2 border-zinc-700">
+                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-slate-700 to-slate-900 flex items-center justify-center text-white font-bold text-xl shadow-sm shrink-0">
                         {equipoSel.codigo?.charAt(0) ?? 'E'}
                       </div>
                       <div>
-                        <div className="flex items-center gap-3">
-                          <h2 className="text-xl font-black text-zinc-900 font-mono tracking-tight">{equipoSel.codigo}</h2>
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase tracking-widest inline-flex items-center gap-1.5 ${equipoSel.estadoOperativo === 'NO_OPERATIVO' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        <div className="flex items-center gap-2">
+                          <h2 className="text-lg font-bold text-slate-900">{equipoSel.codigo}</h2>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${equipoSel.estadoOperativo === 'NO_OPERATIVO' ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'
                             }`}>
                             <span className={`w-1.5 h-1.5 rounded-full ${equipoSel.estadoOperativo === 'NO_OPERATIVO' ? 'bg-red-500' : 'bg-emerald-500'}`} />
                             {equipoSel.estadoOperativo === 'NO_OPERATIVO' ? 'No Operativo' : 'Operativo'}
@@ -635,7 +619,7 @@ export const MantenimientoPage = () => {
                         <div>
                           <p className="text-xs text-slate-400">Último mantenimiento</p>
                           <p className="text-sm font-bold text-slate-700">{fmtDate(registros[0].fechaServicio)}</p>
-                          <span className={`text-[10px] font-bold px-2 py-0.5 mt-1 border rounded uppercase tracking-wider inline-block ${tipoCfg(registros[0].tipo?.nombre).pill}`}>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${tipoCfg(registros[0].tipo?.nombre).pill}`}>
                             {registros[0].tipo?.nombre}
                           </span>
                         </div>
@@ -682,11 +666,11 @@ export const MantenimientoPage = () => {
                       { id: 'costos', label: 'Análisis de Costos', badge: 0 },
                     ].map(tab => (
                       <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-                        className={`flex items-center gap-2 px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider rounded-t-lg transition-colors border-b-2 ${activeTab === tab.id ? 'bg-white text-zinc-900 border-zinc-900' : 'text-zinc-500 border-transparent hover:bg-zinc-50 hover:text-zinc-700'}`}
+                        className={`flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${activeTab === tab.id ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'}`}
                       >
                         {tab.label}
                         {tab.badge > 0 && (
-                          <span className={`text-[9px] px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-600 border border-zinc-200`}>
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${activeTab === tab.id ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-600'}`}>
                             {tab.badge}
                           </span>
                         )}
@@ -742,44 +726,41 @@ export const MantenimientoPage = () => {
                         const costoTotal = (Number(r.costoManoObra) || 0) + (Number(r.costoServicios) || 0) + (Number(r.costoRepuestos) || 0);
                         return (
                           <div key={r.id} onClick={() => setOtDrawer(r)}
-                            className="bg-white border border-zinc-200 rounded-xl p-5 cursor-pointer hover:border-zinc-300 hover:shadow-md transition-all relative overflow-hidden group"
+                            className="bg-white border border-slate-100 rounded-2xl p-5 cursor-pointer hover:border-slate-200 hover:shadow-sm transition-all"
                           >
-                            <div className={`absolute top-0 left-0 w-1.5 h-full ${tipoCfg(r.tipo?.nombre).dot}`} />
-                            <div className="flex items-start justify-between mb-4 pl-2 border-b border-zinc-100 pb-3">
-                              <div className="flex items-center gap-3">
-                                <span className={`text-[10px] font-bold px-2 py-0.5 border rounded uppercase tracking-widest ${tipoCfg(r.tipo?.nombre).pill}`}>
+                            <div className="flex items-start justify-between mb-3">
+                              <div className="flex items-center gap-2">
+                                <div className={`w-2.5 h-2.5 rounded-full ${tipoCfg(r.tipo?.nombre).dot}`} />
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${tipoCfg(r.tipo?.nombre).pill}`}>
                                   {r.tipo?.nombre ?? '—'}
                                 </span>
                               </div>
                               <span className="text-xs text-slate-400">{fmtDate(r.fechaServicio)}</span>
                             </div>
 
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs mb-4 pl-2">
-                              <div className="bg-zinc-50 border border-zinc-100 rounded-lg p-3">
-                                <p className="text-[10px] uppercase font-bold text-zinc-400 tracking-wider mb-1">Lectura</p>
-                                <p className="text-base font-bold text-zinc-900 font-mono">
-                                  {r.lecturaActual?.toLocaleString() ?? '—'} <span className="font-normal text-zinc-400 text-xs">h.</span>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs mb-3">
+                              <div className="bg-slate-50 rounded-xl p-3">
+                                <p className="text-slate-400 mb-0.5">Lectura</p>
+                                <p className="font-bold text-slate-800 font-mono">
+                                  {r.lecturaActual?.toLocaleString() ?? '—'} <span className="font-normal text-slate-400">{equipoSel.parametro?.unidad ?? ''}</span>
                                 </p>
                               </div>
-                              <div className="bg-zinc-50 border border-zinc-100 rounded-lg p-3">
-                                <p className="text-[10px] uppercase font-bold text-zinc-400 tracking-wider mb-1">Mano de Obra</p>
-                                <p className="text-sm font-bold text-zinc-800 font-mono">{fmtMoney(r.costoManoObra)}</p>
+                              <div className="bg-blue-50 rounded-xl p-3">
+                                <p className="text-slate-400 mb-0.5">Mano de Obra</p>
+                                <p className="font-bold text-slate-800">{fmtMoney(r.costoManoObra)}</p>
                               </div>
-                              <div className="bg-zinc-50 border border-zinc-100 rounded-lg p-3">
-                                <p className="text-[10px] uppercase font-bold text-zinc-400 tracking-wider mb-1">Servicios</p>
-                                <p className="text-sm font-bold text-zinc-800 font-mono">{fmtMoney(r.costoServicios)}</p>
+                              <div className="bg-amber-50 rounded-xl p-3">
+                                <p className="text-slate-400 mb-0.5">Servicios</p>
+                                <p className="font-bold text-slate-800">{fmtMoney(r.costoServicios)}</p>
                               </div>
-                              <div className="bg-zinc-50 border border-zinc-100 rounded-lg p-3">
-                                <p className="text-[10px] uppercase font-bold text-zinc-400 tracking-wider mb-1">Repuestos</p>
-                                <p className="text-sm font-bold text-zinc-800 font-mono">{fmtMoney(r.costoRepuestos)}</p>
+                              <div className="bg-emerald-50 rounded-xl p-3">
+                                <p className="text-slate-400 mb-0.5">Repuestos</p>
+                                <p className="font-bold text-slate-800">{fmtMoney(r.costoRepuestos)}</p>
                               </div>
                             </div>
 
-                            <div className="flex items-center justify-end pl-2">
-                              <div className="bg-zinc-100 text-zinc-900 px-3 py-1.5 rounded-lg border border-zinc-200 flex items-center gap-2">
-                                <span className="text-[10px] uppercase font-bold tracking-widest text-zinc-500">Total:</span>
-                                <span className="text-lg font-black font-mono">{fmtMoney(costoTotal > 0 ? costoTotal : r.costoTotal)}</span>
-                              </div>
+                            <div className="flex items-center justify-end">
+                              <p className="text-sm font-bold text-slate-900">Total: {fmtMoney(costoTotal > 0 ? costoTotal : r.costoTotal)}</p>
                             </div>
 
                             {r.observaciones && (
@@ -794,8 +775,8 @@ export const MantenimientoPage = () => {
                                 </p>
                                 <div className="flex flex-wrap gap-1.5">
                                   {r.repuestos.map(rr => (
-                                    <span key={rr.id} className="inline-flex items-center gap-1.5 px-2 py-1 text-[10px] font-bold bg-zinc-100 border border-zinc-200 text-zinc-700 rounded-md uppercase tracking-wider font-mono">
-                                      <span className="bg-zinc-900 px-1 py-0.5 rounded text-[10px] font-black text-white">{rr.cantidad}x</span>
+                                    <span key={rr.id} className="inline-flex items-center gap-1 pl-1.5 pr-2 py-0.5 text-[10px] font-medium bg-slate-100 text-slate-600 rounded-md">
+                                      <span className="bg-white px-1 py-0.5 rounded text-[9px] font-bold text-slate-900 border border-slate-200">{rr.cantidad}x</span>
                                       {rr.repuesto?.nombre} {rr.repuesto?.codigo ? `(${rr.repuesto.codigo})` : ''}
                                     </span>
                                   ))}
