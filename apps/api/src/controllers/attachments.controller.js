@@ -38,7 +38,15 @@ export const uploadAttachment = async (req, res) => {
             },
         });
 
-        return res.status(201).json({ ok: true, data: attachment });
+        // Construir URL de acceso para el nuevo archivo
+        const BASE_URL = process.env.BASE_URL || `http://localhost:${process.env.PORT || 3000}`;
+        const attachmentWithUrl = {
+            ...attachment,
+            url: `${BASE_URL}/uploads/${attachment.filePath}`,
+            isImage: attachment.fileType.startsWith("image/"),
+        };
+
+        return res.status(201).json({ ok: true, data: attachmentWithUrl });
     } catch (err) {
         console.error(err);
         // Intentar eliminar el archivo si hubo error en BD

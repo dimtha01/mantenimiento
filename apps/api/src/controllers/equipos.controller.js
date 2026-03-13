@@ -696,32 +696,28 @@ export const getPromedioHoras = async (req, res) => {
       return res.status(404).json({ ok: false, message: 'Equipo no encontrado' });
     }
 
-    const mantenimientos = await prisma.registroMantenimiento.findMany({
+    // Obtener historial de horas de uso (registros manuales)
+    const historialRegistros = await prisma.historialHoras.findMany({
       where: { equipoId },
-      orderBy: { fechaServicio: 'asc' },
-      include: { tipo: true }
+      orderBy: { fecha: 'asc' }
     });
 
-    let lastReading = 0;
-    const historial = mantenimientos.map(m => {
-      const incremento = m.lecturaActual >= lastReading ? (m.lecturaActual - lastReading) : 0;
-      lastReading = m.lecturaActual;
+    let acumulado = 0;
+    const historial = historialRegistros.map(h => {
+      acumulado += h.horas;
       return {
-        id: m.id,
-        fecha: m.fechaServicio,
-        horas: incremento, // Incremental hours
-        acumulado: m.lecturaActual,
-        tipo: m.tipo?.nombre ?? 'MANTENIMIENTO'
+        id: h.id,
+        fecha: h.fecha,
+        horas: h.horas, // Horas trabajadas ese día
+        acumulado: acumulado, // Total acumulado
+        tipo: 'USO' // Todos los registros son de uso
       };
     });
 
-    // Fórmula: Promedio = horas_totales / dias_totales
+    // Fórmula: Promedio = horas_totales / dias_registrados
     const totalHoras = historial.reduce((sum, h) => sum + h.horas, 0);
-    const msDiff = historial.length > 1
-      ? new Date(historial[historial.length - 1].fecha).getTime() - new Date(historial[0].fecha).getTime()
-      : Number(new Date().getTime());
-    const totalDiasParsed = historial.length > 1 ? Math.max(1, Math.round(msDiff / (1000 * 60 * 60 * 24))) : historial.length;
-    const promedioDiario = totalDiasParsed > 0 ? totalHoras / totalDiasParsed : 0;
+    const totalDias = historial.length;
+    const promedioDiario = totalDias > 0 ? totalHoras / totalDias : 0;
 
     return res.json({
       ok: true,
@@ -730,13 +726,71 @@ export const getPromedioHoras = async (req, res) => {
         historial,
         estadisticas: {
           totalHoras: Math.round(totalHoras * 100) / 100,
-          totalDias: totalDiasParsed,
+          totalDias: totalDias,
           promedioDiario: Math.round(promedioDiario * 100) / 100,
-        },
-      },
+        }
+      }
     });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ ok: false, message: 'Error calculando promedio de horas' });
+  } catch (error) {
+    console.error('Error en getPromedioHoras:', error);
+    return res.status(500).json({ ok: false, message: 'Error obteniendo historial de horas' });
+  }
+};
+
+/* ── POST /api/equipos/:id/historial-horas ── */
+export const createRegistroHoras = async (req, res) => {
+  try {
+    const equipoId = Number(req.params.id);
+    const { fecha, horas } = req.body;
+
+    if (!fecha || !horas || horas <= 0) {
+      return res.status(400).json({ ok: false, message: 'Se requieren fecha y horas válidas' });
+    }
+
+    // Verificar que el equipo existe
+    const equipo = await prisma.equipo.findUnique({ where: { id: equipoId } });
+    if (!equipo) {
+      return res.status(404).json({ ok: false, message: 'Equipo no encontrado' });
+    }
+
+    // Crear registro de historial de horas
+    const registro = await prisma.historialHoras.create({
+      data: {
+        equipoId,
+        fecha: new Date(fecha),
+        horas: Number(horas)
+      }
+    });
+
+    return res.status(201).json({ ok: true, data: registro });
+  } catch (error) {
+    console.error('Error en createRegistroHoras:', error);
+    return res.status(500).json({ ok: false, message: 'Error creando registro de horas' });
+  }
+};
+
+/* ── DELETE /api/equipos/:id/historial-horas/:registroId ── */
+export const deleteRegistroHoras = async (req, res) => {
+  try {
+    const equipoId = Number(req.params.id);
+    const registroId = Number(req.params.registroId);
+
+    // Verificar que el registro pertenezca al equipo
+    const registro = await prisma.historialHoras.findFirst({
+      where: { id: registroId, equipoId }
+    });
+
+    if (!registro) {
+      return res.status(404).json({ ok: false, message: 'Registro no encontrado' });
+    }
+
+    await prisma.historialHoras.delete({
+      where: { id: registroId }
+    });
+
+    return res.json({ ok: true, message: 'Registro eliminado correctamente' });
+  } catch (error) {
+    console.error('Error en deleteRegistroHoras:', error);
+    return res.status(500).json({ ok: false, message: 'Error eliminando registro de horas' });
   }
 };

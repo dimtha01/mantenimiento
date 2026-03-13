@@ -9,6 +9,8 @@ import {
   registrarHorasUso,
   getProximoMantenimiento,
   getPromedioHoras,
+  createRegistroHoras,
+  deleteRegistroHoras,
   cambiarEstadoOperativo,
   createFalla,
   getFallas,
@@ -28,6 +30,8 @@ router.put("/:id/certificaciones/:certId", updateCertificacion);
 router.post("/:id/registrar-horas", registrarHorasUso);
 router.get("/:id/proximo-mantenimiento", getProximoMantenimiento);
 router.get("/:id/promedio-horas", getPromedioHoras);
+router.post("/:id/historial-horas", createRegistroHoras);
+router.delete("/:id/historial-horas/:registroId", deleteRegistroHoras);
 router.put("/:id/estado-operativo", cambiarEstadoOperativo);
 router.get("/:id/fallas", getFallas);
 router.post("/:id/fallas", createFalla);
