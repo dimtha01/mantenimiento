@@ -1,5 +1,21 @@
 import { useState, useEffect, useCallback } from 'react';
 
+/* ── Delete confirmation button ── */
+const DeleteBtn = ({ onConfirm }) => {
+    const [confirm, setConfirm] = useState(false);
+    if (confirm) return (
+        <div className="flex items-center gap-1">
+            <button onClick={onConfirm} className="text-[10px] px-2 py-0.5 bg-red-500 text-white rounded font-bold">Eliminar</button>
+            <button onClick={() => setConfirm(false)} className="text-[10px] px-2 py-0.5 bg-slate-200 rounded font-bold">No</button>
+        </div>
+    );
+    return (
+        <button onClick={() => setConfirm(true)} className="text-slate-400 hover:text-red-600 transition-colors p-1">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+        </button>
+    );
+};
+
 const TIPOS = ['FILTRO', 'CORREA', 'ACEITE', 'OTRO'];
 
 const inputCls = 'w-full border border-slate-200 rounded-xl py-2.5 px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300 bg-white';
@@ -78,7 +94,6 @@ export const RepuestosTab = ({ equipoId }) => {
     };
 
     const handleDelete = async (id) => {
-        if (!window.confirm('¿Eliminar este repuesto?')) return;
         try {
             await fetch(`/api/repuestos/${id}`, { method: 'DELETE' });
             await fetchRepuestos();
@@ -127,9 +142,7 @@ export const RepuestosTab = ({ equipoId }) => {
                                 <button onClick={() => handleEdit(r)} className="text-slate-400 hover:text-blue-600 transition-colors p-1">
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                                 </button>
-                                <button onClick={() => handleDelete(r.id)} className="text-slate-400 hover:text-red-600 transition-colors p-1">
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                </button>
+                                <DeleteBtn onConfirm={() => handleDelete(r.id)} />
                             </div>
                         </div>
                     ))}

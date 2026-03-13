@@ -33,7 +33,7 @@ export async function seedAttachments(prisma, equipos) {
 
                 const attachment = await prisma.attachment.create({
                     data: {
-                        filePath: `uploads/${fileName}`,
+                        filePath: fileName,
                         fileType: tipo === 'pdf' ? 'application/pdf' :
                                   tipo === 'jpg' ? 'image/jpeg' :
                                   tipo === 'png' ? 'image/png' :
@@ -62,7 +62,7 @@ export async function seedAttachments(prisma, equipos) {
 
                 const attachment = await prisma.attachment.create({
                     data: {
-                        filePath: `uploads/${fileName}`,
+                        filePath: fileName,
                         fileType: tipo === 'jpg' ? 'image/jpeg' : 'image/png',
                         fileName: `Evidencia falla - ${falla.descripcion.slice(0, 20)}.${tipo}`,
                         attachableId: falla.id,
