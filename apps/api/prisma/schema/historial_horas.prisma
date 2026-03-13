@@ -1,0 +1,12 @@
+model HistorialHoras {
+    id       Int      @id @default(autoincrement())
+    equipoId Int      @map("equipo_id")
+    fecha    DateTime @db.Date
+    horas    Float
+
+    equipo Equipo @relation(fields: [equipoId], references: [id], onDelete: Cascade)
+
+    @@unique([equipoId, fecha])
+    @@index([equipoId])
+    @@map("historial_horas")
+}

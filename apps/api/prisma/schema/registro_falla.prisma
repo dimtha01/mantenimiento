@@ -8,7 +8,12 @@ model RegistroFalla {
     solucion        String?   @db.Text
     fechaResolucion DateTime? @map("fecha_resolucion") @db.Date
 
+    // Campos nuevos
+    responsable     String?  @db.VarChar(255)
+    costoReparacion Decimal? @map("costo_reparacion") @db.Decimal(12, 2)
+
     equipo Equipo @relation(fields: [equipoId], references: [id])
+    // Attachments se manejan polimórficamente sin relación explícita
 
     @@index([equipoId])
     @@map("registro_fallas")

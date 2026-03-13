@@ -6,11 +6,12 @@ import { LoginPage } from "../pages/LoginPage";
 import { ProtectedRoute } from "../components/ProtectedRoute";
 import { GestionUsuarioPage } from "../pages/GestionUsuarioPage";
 // import UserDashboard from "../pages/app/Dashboard";
-import {NoAutorizado} from "../components/NoAutorizado";
+import { NoAutorizado } from "../components/NoAutorizado";
 import { DashboardPage } from "../pages/DashboardPage";
 import { RegistroEquipoPage } from "../pages/RegistroEquiposPage";
 import { GestionEquiposPage } from "../pages/GestionEquiposPage";
 import { MantenimientoPage } from "../pages/MantenimientoPage";
+import { RepuestosPage } from "../pages/RepuestosPage";
 
 export const router = createBrowserRouter([
   {
@@ -51,6 +52,10 @@ export const router = createBrowserRouter([
           {
             path: "/admin/mantenimiento",
             element: <MantenimientoPage />,
+          },
+          {
+            path: "/admin/repuestos",
+            element: <RepuestosPage />,
           },
         ],
       },

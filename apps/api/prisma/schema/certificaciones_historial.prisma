@@ -7,6 +7,7 @@ model CertificacionHistorial {
   vencimiento   DateTime @map("vencimiento") @db.Date
 
   equipo Equipo @relation(fields: [equipoId], references: [id])
+  // Attachments se manejan polimórficamente sin relación explícita
 
   @@index([equipoId])
   @@map("certificaciones_historial")

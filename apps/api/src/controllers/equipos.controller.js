@@ -13,7 +13,12 @@ const INCLUDE_FULL = {
   planes: { orderBy: { id: "asc" } },
   mantenimientos: {
     orderBy: { fechaServicio: "desc" },
-    include: { tipo: true },
+    include: {
+      tipo: true,
+      repuestos: {
+        include: { repuesto: true }
+      }
+    },
   },
   fallas: {
     orderBy: { fecha: "desc" },
@@ -30,7 +35,12 @@ const INCLUDE_LIST = {
   mantenimientos: {
     orderBy: { fechaServicio: "desc" },
     take: 1,
-    include: { tipo: true },
+    include: {
+      tipo: true,
+      repuestos: {
+        include: { repuesto: true }
+      }
+    },
   },
   fallas: {
     where: { estado: { not: "RESUELTA" } },
@@ -67,7 +77,10 @@ export const getEquipos = async (req, res) => {
       where: filterWhere,
       take: Math.min(parseInt(take) || 100, 500),
       skip: parseInt(skip) || 0,
-      orderBy: { id: "desc" },
+      orderBy: [
+        { modelo: "asc" },
+        { codigo: "asc" }
+      ],
       include: withDetails === "1" ? INCLUDE_FULL : INCLUDE_LIST,
     });
 
@@ -137,26 +150,53 @@ export const getEquipoById = async (req, res) => {
 
 const toId = (v) => (v !== '' && v != null && !isNaN(Number(v)) ? Number(v) : undefined);
 
+// Obtener o crear un registro "Por Verificar" para FKs opcionales
+const getPorVerificarId = async (modelName, columnName = 'nombre') => {
+  const label = 'Por Verificar';
+  const existing = await prisma[modelName].findFirst({
+    where: { [columnName]: { equals: label, mode: 'insensitive' } },
+  });
+  if (existing) return existing.id;
+  const created = await prisma[modelName].create({ data: { [columnName]: label } });
+  return created.id;
+};
+
 export const createEquipo = async (req, res) => {
   try {
     const { codigo, modelo, serial, factura, marcaId, tipoId, unidadNegocioId, propietarioId, parametroId, horasMantenimientoPreventivo, fichaTecnica } = req.body;
 
-    // Helper function inside to safely get or create
-    const resolveId = async (modelName, value, columnName = 'nombre') => {
-      if (!value) return null;
-      if (!isNaN(Number(value))) return Number(value); // Es un ID existente
-      // Es un string nuevo, crearlo dinámicamente
+    if (!codigo) {
+      return res.status(400).json({ ok: false, message: 'El campo código es obligatorio' });
+    }
+
+    // Helper: resolver ID existente, crear nuevo string, o usar "Por Verificar"
+    const resolveId = async (modelName, value, columnName = 'nombre', fallback = false) => {
+      if (!value && !fallback) return null;
+      if (!value && fallback) return getPorVerificarId(modelName, columnName);
+      if (!isNaN(Number(value))) return Number(value);
       const existing = await prisma[modelName].findFirst({ where: { [columnName]: { equals: value, mode: 'insensitive' } } });
       if (existing) return existing.id;
       const created = await prisma[modelName].create({ data: { [columnName]: value } });
       return created.id;
     };
 
-    const marca_id = await resolveId('marca', marcaId);
-    const tipo_id = await resolveId('tipoEquipo', tipoId);
-    const ubic_id = await resolveId('ubicacionActivo', unidadNegocioId);
-    const prop_id = await resolveId('propietario', propietarioId);
-    const param_id = toId(parametroId);
+    // Para ParametroControl sin string, usar el primer registro o el de horas
+    const resolveParametroId = async (value) => {
+      if (value && !isNaN(Number(value))) return Number(value);
+      if (value) {
+        const existing = await prisma.parametroControl.findFirst({ where: { nombre: { contains: value, mode: 'insensitive' } } });
+        if (existing) return existing.id;
+      }
+      // Fallback: usar primer parámetro disponible
+      const primero = await prisma.parametroControl.findFirst({ orderBy: { id: 'asc' } });
+      return primero?.id ?? null;
+    };
+
+    const marca_id = await resolveId('marca', marcaId, 'nombre', true);
+    const tipo_id = await resolveId('tipoEquipo', tipoId, 'nombre', true);
+    const ubic_id = await resolveId('ubicacionActivo', unidadNegocioId, 'nombre', true);
+    const prop_id = await resolveId('propietario', propietarioId, 'nombre', true);
+    const param_id = await resolveParametroId(parametroId);
 
     // Validar ficha técnica si viene
     let fichaTecnicaData = [];
@@ -168,7 +208,9 @@ export const createEquipo = async (req, res) => {
     }
 
     const data = {
-      codigo, modelo, serial,
+      codigo,
+      modelo: modelo || 'Sin modelo',
+      serial: serial || 'Sin serial',
       factura: factura ?? false,
       marcaId: marca_id,
       tipoId: tipo_id,
@@ -179,11 +221,9 @@ export const createEquipo = async (req, res) => {
       fichaTecnica: fichaTecnicaData,
     };
 
-    // Campos obligatorios
-    const missing = ['codigo', 'modelo', 'serial', 'marcaId', 'tipoId', 'unidadNegocioId', 'propietarioId', 'parametroId']
-      .filter(f => data[f] == null || data[f] === '');
-    if (missing.length) {
-      return res.status(400).json({ ok: false, message: `Faltan campos requeridos: ${missing.join(', ')}` });
+    // Solo codigo es realmente obligatorio ahora; pero necesitamos al menos los IDs de FK (se resolvieron con fallback)
+    if (!data.marcaId || !data.tipoId || !data.unidadNegocioId || !data.propietarioId || !data.parametroId) {
+      return res.status(500).json({ ok: false, message: 'No se pudo resolver uno de los catálogos requeridos. Verifique que existan registros en la base de datos.' });
     }
 
     const equipo = await prisma.equipo.create({ data, include: INCLUDE_FULL });
@@ -326,7 +366,7 @@ export const registrarHorasUso = async (req, res) => {
     const { horas } = req.body;
     const equipoId = Number(req.params.id);
 
-    if (!horas || horas <= 0) {
+    if (!horas || Number(horas) <= 0) {
       return res.status(400).json({ ok: false, message: "Las horas deben ser mayores a 0" });
     }
 
@@ -341,6 +381,15 @@ export const registrarHorasUso = async (req, res) => {
     }
 
     const nuevasHoras = (equipoActual.horasAcumuladas || 0) + Number(horas);
+
+    // Registrar historial diario de horas (upsert: si ya existe el día, sumar)
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+    await prisma.historialHoras.upsert({
+      where: { equipoId_fecha: { equipoId, fecha: hoy } },
+      update: { horas: { increment: Number(horas) } },
+      create: { equipoId, fecha: hoy, horas: Number(horas) },
+    });
 
     // Actualizar horas acumuladas
     const equipo = await prisma.equipo.update({
@@ -463,7 +512,7 @@ export const cambiarEstadoOperativo = async (req, res) => {
 export const createFalla = async (req, res) => {
   try {
     const equipoId = Number(req.params.id);
-    const { descripcion, severidad, fecha } = req.body;
+    const { descripcion, severidad, fecha, responsable, costoReparacion } = req.body;
 
     if (!descripcion) {
       return res.status(400).json({ ok: false, message: "La descripción de la falla es obligatoria" });
@@ -475,6 +524,8 @@ export const createFalla = async (req, res) => {
         descripcion,
         severidad: severidad || 'MEDIA',
         fecha: fecha ? new Date(fecha) : new Date(),
+        responsable: responsable || null,
+        costoReparacion: costoReparacion != null ? Number(costoReparacion) : null,
       },
     });
 
@@ -518,13 +569,15 @@ export const getFallas = async (req, res) => {
 export const updateFalla = async (req, res) => {
   try {
     const fallaId = Number(req.params.fallaId);
-    const { estado, solucion, severidad } = req.body;
+    const { estado, solucion, severidad, responsable, costoReparacion } = req.body;
 
     const data = {};
     if (estado) data.estado = estado;
     if (solucion !== undefined) data.solucion = solucion;
     if (severidad) data.severidad = severidad;
     if (estado === 'RESUELTA') data.fechaResolucion = new Date();
+    if (responsable !== undefined) data.responsable = responsable || null;
+    if (costoReparacion !== undefined) data.costoReparacion = costoReparacion != null ? Number(costoReparacion) : null;
 
     const falla = await prisma.registroFalla.update({
       where: { id: fallaId },
@@ -626,5 +679,64 @@ export const updateFichaTecnica = async (req, res) => {
       return res.status(404).json({ ok: false, message: 'Equipo no encontrado' });
     }
     return res.status(500).json({ ok: false, message: 'Error actualizando ficha técnica' });
+  }
+};
+
+/* ── GET /api/equipos/:id/promedio-horas ── */
+export const getPromedioHoras = async (req, res) => {
+  try {
+    const equipoId = Number(req.params.id);
+
+    const equipo = await prisma.equipo.findUnique({
+      where: { id: equipoId },
+      select: { id: true, codigo: true, modelo: true, horasAcumuladas: true },
+    });
+
+    if (!equipo) {
+      return res.status(404).json({ ok: false, message: 'Equipo no encontrado' });
+    }
+
+    const mantenimientos = await prisma.registroMantenimiento.findMany({
+      where: { equipoId },
+      orderBy: { fechaServicio: 'asc' },
+      include: { tipo: true }
+    });
+
+    let lastReading = 0;
+    const historial = mantenimientos.map(m => {
+      const incremento = m.lecturaActual >= lastReading ? (m.lecturaActual - lastReading) : 0;
+      lastReading = m.lecturaActual;
+      return {
+        id: m.id,
+        fecha: m.fechaServicio,
+        horas: incremento, // Incremental hours
+        acumulado: m.lecturaActual,
+        tipo: m.tipo?.nombre ?? 'MANTENIMIENTO'
+      };
+    });
+
+    // Fórmula: Promedio = horas_totales / dias_totales
+    const totalHoras = historial.reduce((sum, h) => sum + h.horas, 0);
+    const msDiff = historial.length > 1
+      ? new Date(historial[historial.length - 1].fecha).getTime() - new Date(historial[0].fecha).getTime()
+      : Number(new Date().getTime());
+    const totalDiasParsed = historial.length > 1 ? Math.max(1, Math.round(msDiff / (1000 * 60 * 60 * 24))) : historial.length;
+    const promedioDiario = totalDiasParsed > 0 ? totalHoras / totalDiasParsed : 0;
+
+    return res.json({
+      ok: true,
+      data: {
+        equipo,
+        historial,
+        estadisticas: {
+          totalHoras: Math.round(totalHoras * 100) / 100,
+          totalDias: totalDiasParsed,
+          promedioDiario: Math.round(promedioDiario * 100) / 100,
+        },
+      },
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ ok: false, message: 'Error calculando promedio de horas' });
   }
 };

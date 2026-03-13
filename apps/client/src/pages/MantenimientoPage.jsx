@@ -58,6 +58,28 @@ const RegistroForm = ({ equipoId, tipos, unidad, planes = [], initialPlanId, hor
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState(null);
 
+  const [repuestosOptions, setRepuestosOptions] = useState([]);
+  const [repuestosSeleccionados, setRepuestosSeleccionados] = useState([]);
+
+  useEffect(() => {
+    fetch(`/api/repuestos?equipoId=${equipoId}`)
+      .then(r => r.json())
+      .then(json => { if (json.ok) setRepuestosOptions(json.data); })
+      .catch(console.error);
+  }, [equipoId]);
+
+  const toggleRepuesto = (r) => {
+    if (repuestosSeleccionados.find(x => x.id === r.id)) {
+      setRepuestosSeleccionados(p => p.filter(x => x.id !== r.id));
+    } else {
+      setRepuestosSeleccionados(p => [...p, { id: r.id, nombre: r.nombre, cantidad: 1 }]);
+    }
+  };
+
+  const updateRepCantidad = (id, cantidad) => {
+    setRepuestosSeleccionados(p => p.map(x => x.id === id ? { ...x, cantidad: Number(cantidad) || 1 } : x));
+  };
+
   const watchTipoId = watch("tipoId");
   const esPreventivo = tipos.find(t => String(t.id) === watchTipoId)?.nombre === 'PREVENTIVO';
 
@@ -84,6 +106,7 @@ const RegistroForm = ({ equipoId, tipos, unidad, planes = [], initialPlanId, hor
           costoServicios: data.costoServicios !== '' ? Number(data.costoServicios) : null,
           costoRepuestos: data.costoRepuestos !== '' ? Number(data.costoRepuestos) : null,
           planId: data.planId ? Number(data.planId) : undefined,
+          repuestosUtilizados: repuestosSeleccionados,
         }),
       });
       const json = await res.json();
@@ -153,6 +176,33 @@ const RegistroForm = ({ equipoId, tipos, unidad, planes = [], initialPlanId, hor
         <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Observaciones</label>
         <textarea {...register("observaciones")} rows={2} className={`${inputCls} resize-none`} placeholder="Detalles del servicio..." />
       </div>
+
+      {/* Selector Multi-Repuestos */}
+      {repuestosOptions.length > 0 && (
+        <div className="border border-slate-200 rounded-xl p-3 bg-white">
+          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Repuestos Utilizados</label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto pr-2">
+            {repuestosOptions.map(rep => {
+              const sel = repuestosSeleccionados.find(x => x.id === rep.id);
+              return (
+                <div key={rep.id} className={`flex items-center justify-between border rounded-lg px-2 py-1.5 transition-colors ${sel ? 'border-blue-500 bg-blue-50 text-blue-900' : 'border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50'}`}>
+                  <label className="flex items-center gap-2 cursor-pointer flex-1 min-w-0">
+                    <input type="checkbox" checked={!!sel} onChange={() => toggleRepuesto(rep)} className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer" />
+                    <span className="text-xs font-medium truncate">{rep.nombre} {rep.codigo ? `(${rep.codigo})` : ''}</span>
+                  </label>
+                  {sel && (
+                    <input
+                      type="number" min="1" value={sel.cantidad}
+                      onChange={e => updateRepCantidad(rep.id, e.target.value)}
+                      className="ml-2 w-16 text-xs px-2 py-0.5 border border-blue-200 rounded text-center focus:outline-none focus:border-blue-500"
+                    />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Selector de plan preventivo */}
       {esPreventivo && planes.length > 0 && (
@@ -709,13 +759,29 @@ export const MantenimientoPage = () => {
                               </div>
                             </div>
 
-                            <div className="flex items-center justify-between">
-                              <p className="text-xs text-slate-400">ID Registro: <span className="font-bold text-slate-600 font-mono">#{r.id}</span></p>
+                            <div className="flex items-center justify-end">
                               <p className="text-sm font-bold text-slate-900">Total: {fmtMoney(costoTotal > 0 ? costoTotal : r.costoTotal)}</p>
                             </div>
 
                             {r.observaciones && (
                               <p className="text-xs text-slate-500 mt-3 italic line-clamp-2">"{r.observaciones}"</p>
+                            )}
+
+                            {r.repuestos && r.repuestos.length > 0 && (
+                              <div className="mt-3 pt-3 border-t border-slate-100">
+                                <p className="text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-1.5 flex items-center gap-1">
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                  Repuestos Utilizados
+                                </p>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {r.repuestos.map(rr => (
+                                    <span key={rr.id} className="inline-flex items-center gap-1 pl-1.5 pr-2 py-0.5 text-[10px] font-medium bg-slate-100 text-slate-600 rounded-md">
+                                      <span className="bg-white px-1 py-0.5 rounded text-[9px] font-bold text-slate-900 border border-slate-200">{rr.cantidad}x</span>
+                                      {rr.repuesto?.nombre} {rr.repuesto?.codigo ? `(${rr.repuesto.codigo})` : ''}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
                             )}
                           </div>
                         );

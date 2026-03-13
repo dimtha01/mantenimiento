@@ -65,12 +65,14 @@ export async function seedEquipos(prisma, { marcas, tipos, ubicaciones, propieta
         const planesData = Array.from({ length: planesN }).map(() => {
             const frecuencia = faker.helpers.arrayElement([10, 20, 50, 100, 150, 250, 500]);
             const base = Math.max(0, horasAcumuladas - randInt(0, frecuencia));
+            const costoEstimado = Number(faker.commerce.price({ min: 50, max: 500 }));
             return {
                 descripcionTarea: faker.helpers.arrayElement(TAREAS_PREVENTIVAS),
                 frecuenciaValor: frecuencia,
                 frecuenciaHoras: frecuencia,
                 horasUltimaEjecucion: base,
                 fechaUltimaEjecucion: faker.date.recent({ days: 60 }),
+                costoEstimado,
             };
         });
 
@@ -91,6 +93,8 @@ export async function seedEquipos(prisma, { marcas, tipos, ubicaciones, propieta
         // ── Fallas ──
         const fallasData = Array.from({ length: fallasN }).map(() => {
             const estado = faker.helpers.arrayElement(estadosFalla);
+            const responsable = faker.person.fullName();
+            const costoReparacion = faker.commerce.price({ min: 50, max: 2000 });
             return {
                 fecha: faker.date.recent({ days: 90 }),
                 descripcion: faker.lorem.sentence({ min: 5, max: 15 }),
@@ -98,6 +102,8 @@ export async function seedEquipos(prisma, { marcas, tipos, ubicaciones, propieta
                 estado,
                 solucion: estado === "RESUELTA" ? faker.lorem.sentence() : null,
                 fechaResolucion: estado === "RESUELTA" ? faker.date.recent({ days: 30 }) : null,
+                responsable,
+                costoReparacion: parseFloat(costoReparacion.replace('$', '').replace(',', '.')),
             };
         });
 

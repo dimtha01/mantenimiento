@@ -10,12 +10,16 @@ import {
     updatePlan,
     deletePlan,
     getTiposMantenimiento,
+    getAnalisisFinanciero,
 } from "../controllers/mantenimientos.controller.js";
 
 const router = Router();
 
 /* Tipos (estático — debe ir ANTES de /:id) */
 router.get("/tipos", getTiposMantenimiento);
+
+/* Análisis Financiero */
+router.get("/analisis-financiero", getAnalisisFinanciero);
 
 /* Planes preventivos (estático — debe ir ANTES de /:id) */
 router.get("/planes", getPlanes);

@@ -8,6 +8,7 @@ import {
   updateCertificacion,
   registrarHorasUso,
   getProximoMantenimiento,
+  getPromedioHoras,
   cambiarEstadoOperativo,
   createFalla,
   getFallas,
@@ -26,6 +27,7 @@ router.post("/:id/certificaciones", createCertificacion);
 router.put("/:id/certificaciones/:certId", updateCertificacion);
 router.post("/:id/registrar-horas", registrarHorasUso);
 router.get("/:id/proximo-mantenimiento", getProximoMantenimiento);
+router.get("/:id/promedio-horas", getPromedioHoras);
 router.put("/:id/estado-operativo", cambiarEstadoOperativo);
 router.get("/:id/fallas", getFallas);
 router.post("/:id/fallas", createFalla);
@@ -34,4 +36,3 @@ router.get("/:id/ficha-tecnica", getFichaTecnica);
 router.put("/:id/ficha-tecnica", updateFichaTecnica);
 
 export default router;
-

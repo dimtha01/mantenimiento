@@ -34,8 +34,9 @@ model Equipo {
   mantenimientos  RegistroMantenimiento[]
   fallas          RegistroFalla[]
   alertas         AlertaPreventiva[]
-
-  imagenes Imagen[]
+  imagenes        Imagen[]
+  historialHoras  HistorialHoras[]
+  repuestos       Repuesto[]
 
   @@index([tipoId])
   @@index([marcaId])

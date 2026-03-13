@@ -1,0 +1,15 @@
+model Attachment {
+    id             Int      @id @default(autoincrement())
+    filePath       String   @map("file_path")
+    fileType       String   @map("file_type") // "image/jpeg", "application/pdf", "image/png", etc.
+    fileName       String   @map("file_name")
+    attachableId   Int      @map("attachable_id")
+    attachableType String   @map("attachable_type") // "equipo" | "falla" | "certificacion"
+    creadoEn       DateTime @default(now()) @map("creado_en")
+
+    // Relación polimórfica sin FK explícita para evitar conflictos
+    // Se maneja a nivel de aplicación usando attachableType y attachableId
+
+    @@index([attachableId, attachableType])
+    @@map("attachments")
+}
