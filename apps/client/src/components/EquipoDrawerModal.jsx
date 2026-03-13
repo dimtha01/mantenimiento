@@ -1,7 +1,10 @@
 // EquipoDrawerModal.jsx
-// Tabs: Info General | Certificaciones | Mantenimientos | Planes
+// Tabs: Info General | Certificaciones | Mantenimientos | Planes | Repuestos | Adjuntos
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { FichaTecnicaEditor } from './FichaTecnicaEditor';
+import { HistorialHorasTab } from './HistorialHorasTab';
+import { AdjuntosTab } from './AdjuntosTab';
+import { ArchivosPanel } from './ArchivosPanel';
 
 /* ─── helpers ─────────────────────────────────────────────────── */
 const daysUntil = (dateStr) =>
@@ -18,10 +21,84 @@ const certBadge = (vencimiento) => {
 
 const fmtDate = (iso) => iso ? new Date(iso).toLocaleDateString('es-VE') : '—';
 
+/* ─── CertCard ────────────────────────────────────────────────── */
+const CertCard = ({ cert, info, d, isExp, isSoon, onRenovar }) => {
+  const [showFiles, setShowFiles] = useState(false);
+  return (
+    <div className={`border rounded-xl overflow-hidden ${isExp ? 'border-red-200' : isSoon ? 'border-amber-200' : 'border-slate-200'}`}>
+      {/* Header */}
+      <div className={`p-4 ${isExp ? 'bg-red-50/50' : isSoon ? 'bg-amber-50/50' : 'bg-white'}`}>
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${info.color}`}>
+                {isExp ? 'VENCIDO' : isSoon ? `${d}d para vencer` : 'VIGENTE'}
+              </span>
+            </div>
+            <p className="text-sm font-bold text-slate-800 truncate">{cert.nombre || 'Certificación'}</p>
+            <div className="flex items-center gap-3 mt-1.5 text-xs text-slate-500">
+              <span>Emisión: <strong className="text-slate-700">{fmtDate(cert.fechaEmision)}</strong></span>
+              <span>·</span>
+              <span>Vence: <strong className={isExp ? 'text-red-700' : isSoon ? 'text-amber-700' : 'text-slate-700'}>{fmtDate(cert.vencimiento)}</strong></span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {isExp && (
+              <button onClick={onRenovar}
+                className="px-3 py-1.5 text-xs font-bold bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors">
+                Renovar
+              </button>
+            )}
+            <button
+              onClick={() => setShowFiles(v => !v)}
+              className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-colors ${showFiles ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+              </svg>
+              Archivos
+            </button>
+          </div>
+        </div>
+      </div>
+      {/* Archivos expandibles */}
+      {showFiles && (
+        <div className="border-t border-slate-100 p-4 bg-slate-50/60">
+          <ArchivosPanel attachableType="certificacion" attachableId={cert.id} />
+        </div>
+      )}
+    </div>
+  );
+};
+
 const FORM_EMPTY = {
   codigo: '', modelo: '', serial: '', factura: false,
   marcaId: '', tipoId: '', unidadNegocioId: '', propietarioId: '', parametroId: '',
 };
+
+/* ─── FallaArchivos ──────────────────────────────────────────── */
+const FallaArchivos = ({ fallaId }) => {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="mt-3 border-t border-slate-100 pt-2">
+      <button
+        onClick={() => setOpen(v => !v)}
+        className={`flex items-center gap-1.5 text-xs font-semibold transition-colors ${open ? 'text-slate-700' : 'text-slate-400 hover:text-slate-700'}`}
+      >
+        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+        </svg>
+        {open ? 'Ocultar evidencias' : 'Ver / adjuntar evidencias'}
+      </button>
+      {open && (
+        <div className="mt-2">
+          <ArchivosPanel attachableType="falla" attachableId={fallaId} />
+        </div>
+      )}
+    </div>
+  );
+};
+
 
 /* ─── SELECT helper ───────────────────────────────────────────── */
 const Field = ({ label, onAdd, children }) => (
@@ -48,6 +125,103 @@ const Field = ({ label, onAdd, children }) => (
 
 const inputCls = 'w-full border border-slate-200 rounded-xl py-2.5 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300 bg-white';
 const selectCls = `${inputCls} pr-8`;
+
+/* ─── CatalogCombobox ─── free-text, auto-create, inline delete ──── */
+const CatalogCombobox = ({
+  label, value, items = [], onChange, onCreateNew, onDelete, placeholder = 'Escribir...',
+}) => {
+  const [query, setQuery] = useState('');
+  const [open, setOpen] = useState(false);
+  const [delConfirm, setDelConfirm] = useState(null); // item id pending delete
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) { setOpen(false); setDelConfirm(null); } };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const selected = items.find(i => String(i.id) === String(value));
+  const trimmed = query.trim();
+
+  const filtered = trimmed
+    ? items.filter(i => i.nombre.toLowerCase().includes(trimmed.toLowerCase()))
+    : items;
+
+  const exactMatch = items.find(i => i.nombre.toLowerCase() === trimmed.toLowerCase());
+  const showCreate = trimmed && !exactMatch;
+
+  const handleSelect = (item) => { onChange(item.id); setQuery(''); setOpen(false); };
+  const handleClear = (e) => { e.stopPropagation(); onChange(''); setQuery(''); };
+
+  const handleCreate = async () => {
+    if (!trimmed) return;
+    const newItem = await onCreateNew(trimmed);
+    if (newItem) { onChange(newItem.id); setQuery(''); setOpen(false); }
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (filtered.length === 1 && !showCreate) handleSelect(filtered[0]);
+      else if (showCreate) handleCreate();
+    }
+    if (e.key === 'Escape') { setOpen(false); setQuery(''); }
+  };
+
+  return (
+    <div ref={ref} className="relative">
+      <div className={`flex items-center border rounded-xl bg-white overflow-visible ${open ? 'border-blue-400 ring-2 ring-blue-100' : 'border-slate-200'}`}>
+        {selected && !open ? (
+          <div className="flex items-center flex-1 pl-3 py-2.5 gap-2">
+            <span className="text-sm text-slate-800 flex-1 truncate">{selected.nombre}</span>
+            <button type="button" onClick={handleClear} className="mr-2 text-slate-300 hover:text-red-500 transition-colors shrink-0" title="Quitar selección">
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+          </div>
+        ) : (
+          <input
+            type="text" value={query}
+            onChange={e => { setQuery(e.target.value); setOpen(true); }}
+            onFocus={() => setOpen(true)}
+            onKeyDown={handleKeyDown}
+            placeholder={placeholder}
+            className="flex-1 py-2.5 px-3 text-sm bg-transparent outline-none placeholder-slate-400"
+          />
+        )}
+      </div>
+
+      {open && (filtered.length > 0 || showCreate) && (
+        <ul className="absolute z-50 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl max-h-52 overflow-y-auto">
+          {filtered.map(item => (
+            <li key={item.id} className="flex items-center justify-between px-3 py-2 text-sm hover:bg-slate-50 group">
+              <span className="flex-1 cursor-pointer" onClick={() => handleSelect(item)}>{item.nombre}</span>
+              {onDelete && (
+                delConfirm === item.id ? (
+                  <div className="flex items-center gap-1 ml-2">
+                    <button type="button" onClick={() => { onDelete(item); setDelConfirm(null); setOpen(false); }} className="text-[10px] px-2 py-0.5 bg-red-500 text-white rounded font-bold">Eliminar</button>
+                    <button type="button" onClick={() => setDelConfirm(null)} className="text-[10px] px-2 py-0.5 bg-slate-200 rounded font-bold">No</button>
+                  </div>
+                ) : (
+                  <button type="button" onClick={e => { e.stopPropagation(); setDelConfirm(item.id); }}
+                    className="ml-2 opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-500 transition-all" title="Eliminar">
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                  </button>
+                )
+              )}
+            </li>
+          ))}
+          {showCreate && (
+            <li onClick={handleCreate} className="flex items-center gap-2 px-3 py-2.5 text-sm text-blue-700 font-semibold hover:bg-blue-50 cursor-pointer border-t border-slate-100">
+              <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
+              Crear «{trimmed}»
+            </li>
+          )}
+        </ul>
+      )}
+    </div>
+  );
+};
 
 /* ─── MODAL PEQUEÑO PARA CATÁLOGOS ────────────────────────────── */
 const NuevoCatalogoModal = ({ visible, onClose, onSave, title, error }) => {
@@ -156,7 +330,7 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
 
   /* fallas */
   const [showFallaForm, setShowFallaForm] = useState(false);
-  const [newFalla, setNewFalla] = useState({ descripcion: '', severidad: 'MEDIA', fecha: new Date().toISOString().split('T')[0] });
+  const [newFalla, setNewFalla] = useState({ descripcion: '', severidad: 'MEDIA', fecha: new Date().toISOString().split('T')[0], responsable: '', costoReparacion: '' });
   const [fallaSaving, setFallaSaving] = useState(false);
   const [estadoSaving, setEstadoSaving] = useState(false);
   const [resolverFallaModal, setResolverFallaModal] = useState({ visible: false, fallaId: null, solucion: '' });
@@ -283,24 +457,6 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
   /* ── guardar equipo ────────────────────────────────── */
   const handleSave = async () => {
     setSaveError(null);
-
-    // Validación client-side
-    const required = [
-      { key: 'codigo', label: 'Código' },
-      { key: 'modelo', label: 'Modelo' },
-      { key: 'serial', label: 'Serial' },
-      { key: 'marcaId', label: 'Marca' },
-      { key: 'tipoId', label: 'Tipo' },
-      { key: 'unidadNegocioId', label: 'Ubicación' },
-      { key: 'propietarioId', label: 'Propietario' },
-      { key: 'parametroId', label: 'Parámetro' },
-    ];
-    const missing = required.filter(({ key }) => !form[key] || form[key] === '');
-    if (missing.length) {
-      setSaveError(`Completa los campos requeridos: ${missing.map(m => m.label).join(', ')}`);
-      return;
-    }
-
     setSaving(true);
     try {
       await onSave(form);
@@ -429,6 +585,7 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
     { id: 'ficha', label: 'Sub Especificaciones', badge: 0 },
     { id: 'horas', label: 'Horas de Uso', badge: 0 },
     { id: 'fallas', label: 'Fallas', badge: fallasAbiertas.length },
+    { id: 'historial_horas', label: 'Historial Horas', badge: null },
     { id: 'certificaciones', label: 'Certificaciones', badge: alertCerts.length },
     { id: 'mantenimientos', label: 'Mantenimientos', badge: 0 },
     { id: 'planes', label: 'Planes', badge: 0 },
@@ -669,75 +826,92 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
 
               <div className="grid grid-cols-2 gap-4">
                 {/* Marca */}
-                <Field
-                  label="Marca"
-                  onAdd={() => setCatalogModal({ visible: true, type: 'marcas', label: 'Nueva Marca', error: null })}
-                >
-                  <select
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Marca</label>
+                  <CatalogCombobox
                     value={form.marcaId}
-                    onChange={(e) => handleChange('marcaId', e.target.value)}
-                    className={selectCls}
-                  >
-                    <option value="">Seleccionar marca...</option>
-                    {catalogos.marcas.map(m => (
-                      <option key={m.id} value={m.id}>{m.nombre}</option>
-                    ))}
-                  </select>
-                </Field>
+                    items={catalogos.marcas}
+                    onChange={(v) => handleChange('marcaId', v)}
+                    onCreateNew={async (nombre) => {
+                      const res = await fetch('/api/catalogos/marcas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nombre }) });
+                      const json = await res.json();
+                      if (json.ok) { setCatalogos(p => ({ ...p, marcas: [...p.marcas, json.data].sort((a, b) => a.nombre.localeCompare(b.nombre)) })); return json.data; }
+                    }}
+                    onDelete={async (item) => {
+                      await fetch(`/api/catalogos/marcas/${item.id}`, { method: 'DELETE' });
+                      setCatalogos(p => ({ ...p, marcas: p.marcas.filter(m => m.id !== item.id) }));
+                      if (String(form.marcaId) === String(item.id)) handleChange('marcaId', '');
+                    }}
+                    placeholder="Escribir o seleccionar marca..."
+                  />
+                </div>
 
                 {/* Tipo */}
-                <Field
-                  label="Tipo de Equipo"
-                  onAdd={() => setCatalogModal({ visible: true, type: 'tipos', label: 'Nuevo Tipo', error: null })}
-                >
-                  <select
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Tipo de Equipo</label>
+                  <CatalogCombobox
                     value={form.tipoId}
-                    onChange={(e) => handleChange('tipoId', e.target.value)}
-                    className={selectCls}
-                  >
-                    <option value="">Seleccionar tipo...</option>
-                    {catalogos.tipos.map(t => (
-                      <option key={t.id} value={t.id}>{t.nombre}</option>
-                    ))}
-                  </select>
-                </Field>
+                    items={catalogos.tipos}
+                    onChange={(v) => handleChange('tipoId', v)}
+                    onCreateNew={async (nombre) => {
+                      const res = await fetch('/api/catalogos/tipos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nombre }) });
+                      const json = await res.json();
+                      if (json.ok) { setCatalogos(p => ({ ...p, tipos: [...p.tipos, json.data].sort((a, b) => a.nombre.localeCompare(b.nombre)) })); return json.data; }
+                    }}
+                    onDelete={async (item) => {
+                      await fetch(`/api/catalogos/tipos/${item.id}`, { method: 'DELETE' });
+                      setCatalogos(p => ({ ...p, tipos: p.tipos.filter(t => t.id !== item.id) }));
+                      if (String(form.tipoId) === String(item.id)) handleChange('tipoId', '');
+                    }}
+                    placeholder="Escribir o seleccionar tipo..."
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 {/* Ubicación */}
-                <Field
-                  label="Ubicación / Unidad"
-                  onAdd={() => setCatalogModal({ visible: true, type: 'ubicaciones', label: 'Nueva Ubicación', error: null })}
-                >
-                  <select
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Ubicación / Unidad</label>
+                  <CatalogCombobox
                     value={form.unidadNegocioId}
-                    onChange={(e) => handleChange('unidadNegocioId', e.target.value)}
-                    className={selectCls}
-                  >
-                    <option value="">Seleccionar ubicación...</option>
-                    {catalogos.ubicaciones.map(u => (
-                      <option key={u.id} value={u.id}>{u.nombre}</option>
-                    ))}
-                  </select>
-                </Field>
+                    items={catalogos.ubicaciones}
+                    onChange={(v) => handleChange('unidadNegocioId', v)}
+                    onCreateNew={async (nombre) => {
+                      const res = await fetch('/api/catalogos/ubicaciones', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nombre }) });
+                      const json = await res.json();
+                      if (json.ok) { setCatalogos(p => ({ ...p, ubicaciones: [...p.ubicaciones, json.data].sort((a, b) => a.nombre.localeCompare(b.nombre)) })); return json.data; }
+                    }}
+                    onDelete={async (item) => {
+                      await fetch(`/api/catalogos/ubicaciones/${item.id}`, { method: 'DELETE' });
+                      setCatalogos(p => ({ ...p, ubicaciones: p.ubicaciones.filter(u => u.id !== item.id) }));
+                      if (String(form.unidadNegocioId) === String(item.id)) handleChange('unidadNegocioId', '');
+                    }}
+                    placeholder="Escribir o seleccionar ubicación..."
+                  />
+                </div>
 
                 {/* Propietario */}
-                <Field
-                  label="Propietario"
-                  onAdd={() => setCatalogModal({ visible: true, type: 'propietarios', label: 'Nuevo Propietario', error: null })}
-                >
-                  <select
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Propietario</label>
+                  <CatalogCombobox
                     value={form.propietarioId}
-                    onChange={(e) => handleChange('propietarioId', e.target.value)}
-                    className={selectCls}
-                  >
-                    <option value="">Seleccionar propietario...</option>
-                    {catalogos.propietarios.map(p => (
-                      <option key={p.id} value={p.id}>{p.nombre}</option>
-                    ))}
-                  </select>
-                </Field>
+                    items={catalogos.propietarios}
+                    onChange={(v) => handleChange('propietarioId', v)}
+                    onCreateNew={async (nombre) => {
+                      const res = await fetch('/api/catalogos/propietarios', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nombre }) });
+                      const json = await res.json();
+                      if (json.ok) { setCatalogos(p => ({ ...p, propietarios: [...p.propietarios, json.data].sort((a, b) => a.nombre.localeCompare(b.nombre)) })); return json.data; }
+                    }}
+                    onDelete={async (item) => {
+                      await fetch(`/api/catalogos/propietarios/${item.id}`, { method: 'DELETE' });
+                      setCatalogos(p => ({ ...p, propietarios: p.propietarios.filter(p2 => p2.id !== item.id) }));
+                      if (String(form.propietarioId) === String(item.id)) handleChange('propietarioId', '');
+                    }}
+                    placeholder="Escribir o seleccionar propietario..."
+                  />
+                </div>
               </div>
+
 
               {/* Parámetro de control */}
               <Field label="Parámetro de Control (unidad de medición)">
@@ -967,7 +1141,7 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
                 ))}
               </div>
 
-              {/* Lista certificaciones */}
+              {/* Grid de tarjetas de certificaciones */}
               {certs.length === 0 ? (
                 <div className="py-6 text-center">
                   <svg className="w-8 h-8 text-slate-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -976,65 +1150,30 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
                   <p className="text-sm text-slate-400">Sin certificaciones registradas</p>
                 </div>
               ) : (
-                <div className="relative">
-                  <div className="absolute left-[18px] top-2 bottom-2 w-0.5 bg-slate-200 z-0" />
-                  <div className="space-y-2 relative z-10">
-                    {certs.map((cert) => {
-                      const info = certBadge(cert.vencimiento);
-                      const d = daysUntil(cert.vencimiento);
-                      const isExp = d !== null && d < 0;
-                      const isSoon = d !== null && d >= 0 && d < 90;
-                      return (
-                        <div key={cert.id} className="flex gap-4">
-                          <div className="flex-shrink-0 mt-1">
-                            <div className={`w-9 h-9 rounded-full border-4 border-white shadow-sm flex items-center justify-center ${info.dot}`}>
-                              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                              </svg>
-                            </div>
-                          </div>
-                          <div className={`flex-1 border rounded-xl p-3 mb-1 ${isExp ? 'border-red-200 bg-red-50/40' : isSoon ? 'border-amber-200 bg-amber-50/40' : 'border-slate-100 bg-white'}`}>
-                            <div className="flex items-start justify-between mb-2">
-                              <div>
-                                <div className="flex items-center gap-2 mb-0.5">
-                                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${info.color}`}>
-                                    {isExp ? 'VENCIDO' : isSoon ? `${d}d` : 'VIGENTE'}
-                                  </span>
-                                </div>
-                                <p className="text-sm font-semibold text-slate-800 mt-1">{cert.nombre || 'Certificación'}</p>
-                                <p className="text-xs text-slate-400 mt-0.5">
-                                  Duración: <span className="font-semibold text-slate-700">{cert.duracionMeses} meses</span>
-                                </p>
-                              </div>
-                              {isExp && (
-                                <button
-                                  onClick={() => {
-                                    setNewCert({ nombre: cert.nombre || '', fechaEmision: '', duracionMeses: String(cert.duracionMeses), vencimiento: '' });
-                                    setShowCertForm(true);
-                                  }}
-                                  className="px-3 py-1.5 text-xs font-bold bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors self-start"
-                                >Renovar</button>
-                              )}
-                            </div>
-                            <div className="grid grid-cols-2 gap-2 text-xs">
-                              <div>
-                                <span className="text-slate-400">Emisión: </span>
-                                <span className="font-semibold text-slate-700">{fmtDate(cert.fechaEmision)}</span>
-                              </div>
-                              <div>
-                                <span className="text-slate-400">Vence: </span>
-                                <span className={`font-semibold ${isExp ? 'text-red-600' : isSoon ? 'text-amber-600' : 'text-slate-700'}`}>
-                                  {fmtDate(cert.vencimiento)}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                <div className="grid grid-cols-1 gap-3">
+                  {certs.map((cert) => {
+                    const info = certBadge(cert.vencimiento);
+                    const d = daysUntil(cert.vencimiento);
+                    const isExp = d !== null && d < 0;
+                    const isSoon = d !== null && d >= 0 && d < 90;
+                    return (
+                      <CertCard
+                        key={cert.id}
+                        cert={cert}
+                        info={info}
+                        d={d}
+                        isExp={isExp}
+                        isSoon={isSoon}
+                        onRenovar={() => {
+                          setNewCert({ nombre: cert.nombre || '', fechaEmision: '', duracionMeses: String(cert.duracionMeses), vencimiento: '' });
+                          setShowCertForm(true);
+                        }}
+                      />
+                    );
+                  })}
                 </div>
               )}
+
 
               {/* Formulario nuevo certificado */}
               {showCertForm ? (
@@ -1184,7 +1323,16 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
                         {m.observaciones && (
                           <p className="text-xs text-slate-500 mt-2 italic">"{m.observaciones}"</p>
                         )}
-
+                        {m.repuestos && m.repuestos.length > 0 && (
+                          <div className="mt-2 pt-2 border-t border-slate-100 flex flex-wrap gap-1">
+                            {m.repuestos.map(rr => (
+                              <span key={rr.id} className="inline-flex items-center gap-1 pl-1 pr-1.5 py-0.5 text-[9px] bg-slate-100 text-slate-600 rounded">
+                                <span className="bg-white px-1 py-0.5 rounded font-bold text-slate-900 border border-slate-200">{rr.cantidad}x</span>
+                                {rr.repuesto?.nombre} {rr.repuesto?.codigo ? `(${rr.repuesto.codigo})` : ''}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -1350,6 +1498,22 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
                     {falla.fechaResolucion && (
                       <p className="text-xs text-slate-400">Resuelta el {fmtDate(falla.fechaResolucion)}</p>
                     )}
+                    {(falla.responsable || falla.costoReparacion) && (
+                      <div className="flex items-center gap-3 mt-1.5 text-xs text-slate-500">
+                        {falla.responsable && (
+                          <span className="flex items-center gap-1">
+                            <svg className="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                            {falla.responsable}
+                          </span>
+                        )}
+                        {falla.costoReparacion && (
+                          <span className="flex items-center gap-1 font-semibold text-emerald-700">
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            ${Number(falla.costoReparacion).toFixed(2)}
+                          </span>
+                        )}
+                      </div>
+                    )}
                     {falla.estado !== 'RESUELTA' && (
                       <div className="flex gap-2 mt-3">
                         {falla.estado === 'ABIERTA' && (
@@ -1361,9 +1525,11 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
                         >✓ Resolver</button>
                       </div>
                     )}
+                    <FallaArchivos fallaId={falla.id} />
                   </div>
                 );
               })}
+
 
               {/* Formulario nueva falla */}
               {showFallaForm ? (
@@ -1399,6 +1565,28 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
                       <p className="text-xs text-red-700">Una falla <strong>{newFalla.severidad}</strong> marcará automáticamente el equipo como <strong>No Operativo</strong>.</p>
                     </div>
                   )}
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Responsable">
+                      <input
+                        type="text"
+                        value={newFalla.responsable}
+                        onChange={(e) => setNewFalla(p => ({ ...p, responsable: e.target.value }))}
+                        placeholder="Ej: Juan Pérez"
+                        className={inputCls}
+                      />
+                    </Field>
+                    <Field label="Costo de Reparación ($)">
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={newFalla.costoReparacion}
+                        onChange={(e) => setNewFalla(p => ({ ...p, costoReparacion: e.target.value }))}
+                        placeholder="Ej: 150.00"
+                        className={inputCls}
+                      />
+                    </Field>
+                  </div>
                   <div className="flex gap-2 pt-1">
                     <button onClick={handleAddFalla} disabled={fallaSaving} className="flex-1 py-2 bg-slate-900 text-white text-sm font-bold rounded-xl hover:bg-slate-800 transition-colors disabled:opacity-60">
                       {fallaSaving ? 'Guardando...' : 'Registrar Falla'}
@@ -1415,6 +1603,18 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
                   Registrar Falla
                 </button>
               )}
+            </div>
+          )}
+
+          {/* ════ Historial Horas ════ */}
+          {activeTab === 'historial_horas' && (
+            <HistorialHorasTab equipoId={equipo.id} />
+          )}
+
+          {/* ════ Adjuntos / Archivos ════ */}
+          {activeTab === 'adjuntos' && (
+            <div className="px-6 py-4">
+              <ArchivosPanel attachableType="equipo" attachableId={equipo.id} />
             </div>
           )}
 

@@ -52,6 +52,16 @@ export const Sidebar = ({ isOpen = true, onClose }) => {
     },
     {
       icon: (
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <polygon points="12,2 21,8 21,16 12,22 3,16 3,8" />
+          <circle cx="12" cy="12" r="3.5" />
+        </svg>
+      ),
+      path: '/admin/repuestos',
+      label: 'Repuestos',
+    },
+    {
+      icon: (
         <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
           <path d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
         </svg>
@@ -95,50 +105,50 @@ export const Sidebar = ({ isOpen = true, onClose }) => {
         transition-transform duration-300 ease-in-out
         ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
       `}>
-      {/* Logo */}
-      <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-700 rounded-xl flex items-center justify-center text-white font-bold text-xl shadow-lg mb-4">
-        {/* <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        {/* Logo */}
+        <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-700 rounded-xl flex items-center justify-center text-white font-bold text-xl shadow-lg mb-4">
+          {/* <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
         </svg> */}
-        <h1>BD</h1>
-      </div>
+          <h1>BD</h1>
+        </div>
 
-      {/* Menu Items */}
-      <nav className="flex-1 flex flex-col items-center gap-2 w-full px-3">
-        {menuItems.map((item) => (
-          <button
-            key={item.path}
-            className={`
+        {/* Menu Items */}
+        <nav className="flex-1 flex flex-col items-center gap-2 w-full px-3">
+          {menuItems.map((item) => (
+            <button
+              key={item.path}
+              className={`
               w-12 h-12 flex items-center justify-center rounded-xl transition-all duration-200
               ${activeItem === item.path
-                ? 'bg-slate-900 text-white shadow-lg scale-105'
-                : 'text-slate-400 hover:bg-slate-100 hover:text-slate-700'
-              }
+                  ? 'bg-slate-900 text-white shadow-lg scale-105'
+                  : 'text-slate-400 hover:bg-slate-100 hover:text-slate-700'
+                }
             `}
-            title={item.label}
-            onClick={() => {
-              setActiveItem(item.path);
-              navigate(item.path);
-              // Cerrar sidebar en móvil después de navegar
-              if (window.innerWidth < 1024 && onClose) onClose();
-            }}
-          >
-            {item.icon}
-          </button>
-        ))}
-      </nav>
+              title={item.label}
+              onClick={() => {
+                setActiveItem(item.path);
+                navigate(item.path);
+                // Cerrar sidebar en móvil después de navegar
+                if (window.innerWidth < 1024 && onClose) onClose();
+              }}
+            >
+              {item.icon}
+            </button>
+          ))}
+        </nav>
 
-      {/* Logout Button */}
-      <button
-        onClick={handleLogout}
-        className="w-12 h-12 flex items-center justify-center rounded-xl text-red-500 hover:bg-red-50 transition-all duration-200"
-        title="Cerrar sesión"
-      >
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-        </svg>
-      </button>
-    </aside>
+        {/* Logout Button */}
+        <button
+          onClick={handleLogout}
+          className="w-12 h-12 flex items-center justify-center rounded-xl text-red-500 hover:bg-red-50 transition-all duration-200"
+          title="Cerrar sesión"
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+          </svg>
+        </button>
+      </aside>
     </>
   );
 };

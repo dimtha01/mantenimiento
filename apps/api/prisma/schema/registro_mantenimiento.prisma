@@ -1,20 +1,21 @@
 model RegistroMantenimiento {
-  id                Int      @id @default(autoincrement())
-  equipoId          Int      @map("equipo_id")
-  fechaServicio     DateTime @map("fecha_servicio") @db.Date
-  lecturaActual     Int      @map("lectura_actual")
-  observaciones     String?  @db.Text
+  id             Int      @id @default(autoincrement())
+  equipoId       Int      @map("equipo_id")
+  fechaServicio  DateTime @map("fecha_servicio") @db.Date
+  lecturaActual  Int      @map("lectura_actual")
+  observaciones  String?  @db.Text
   // Costos separados para mejor control
-  costoManoObra     Decimal? @map("costo_mano_obra") @db.Decimal(12, 2)
-  costoServicios    Decimal? @map("costo_servicios") @db.Decimal(12, 2)
-  costoRepuestos    Decimal? @map("costo_repuestos") @db.Decimal(12, 2)
+  costoManoObra  Decimal? @map("costo_mano_obra") @db.Decimal(12, 2)
+  costoServicios Decimal? @map("costo_servicios") @db.Decimal(12, 2)
+  costoRepuestos Decimal? @map("costo_repuestos") @db.Decimal(12, 2)
   // costoTotal se mantiene por compatibilidad, ahora es calculado
-  costoTotal        Decimal? @map("costo_total") @db.Decimal(12, 2)
+  costoTotal     Decimal? @map("costo_total") @db.Decimal(12, 2)
 
   tipoId Int               @map("tipo_id")
   tipo   TipoMantenimiento @relation(fields: [tipoId], references: [id])
 
-  equipo Equipo @relation(fields: [equipoId], references: [id])
+  equipo    Equipo                  @relation(fields: [equipoId], references: [id])
+  repuestos RepuestoMantenimiento[]
 
   @@index([equipoId])
   @@index([tipoId])

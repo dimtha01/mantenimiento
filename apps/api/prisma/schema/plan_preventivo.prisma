@@ -1,9 +1,10 @@
 model PlanPreventivo {
-  id               Int    @id @default(autoincrement())
-  equipoId         Int    @map("equipo_id")
-  descripcionTarea String @map("descripcion_tarea")
-  frecuenciaValor  Int    @map("frecuencia_valor")
-  frecuenciaHoras  Int?   @default(0) @map("frecuencia_horas")
+  id               Int      @id @default(autoincrement())
+  equipoId         Int      @map("equipo_id")
+  descripcionTarea String   @map("descripcion_tarea")
+  frecuenciaValor  Int      @map("frecuencia_valor")
+  frecuenciaHoras  Int?     @default(0) @map("frecuencia_horas")
+  costoEstimado    Decimal? @map("costo_estimado") @db.Decimal(12, 2)
 
   // Tracking de ejecución basado en horas
   horasUltimaEjecucion Int?      @default(0) @map("horas_ultima_ejecucion")
