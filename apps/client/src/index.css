@@ -1,42 +1,87 @@
 @import "tailwindcss";
 
-@keyframes slide-in {
-  from {
-    transform: translateX(100%);
-  }
-  to {
-    transform: translateX(0);
-  }
+@theme {
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", monospace;
+
+  /* Color World - Industrial Control Center */
+  /* Zinc-based neutral palette for machinery/structure */
+  --color-zinc-50: #fafafa;
+  --color-zinc-100: #f4f4f5;
+  --color-zinc-200: #e4e4e7;
+  --color-zinc-300: #d4d4d8;
+  --color-zinc-400: #a1a1aa;
+  --color-zinc-500: #71717a;
+  --color-zinc-600: #52525b;
+  --color-zinc-700: #3f3f46;
+  --color-zinc-800: #27272a;
+  --color-zinc-900: #18181b;
+
+  /* Semantic - Safety Emerald (Operativo/Success) */
+  --color-emerald-50: #ecfdf5;
+  --color-emerald-100: #d1fae5;
+  --color-emerald-500: #10b981;
+  --color-emerald-600: #059669;
+  --color-emerald-700: #047857;
+
+  /* Semantic - Alert Red (No Operativo/Falla/Vencido) */
+  --color-red-50: #fef2f2;
+  --color-red-100: #fee2e2;
+  --color-red-500: #ef4444;
+  --color-red-600: #dc2626;
+  --color-red-700: #b91c1c;
+
+  /* Semantic - Preventative Amber (Warning/Pendiente) */
+  --color-amber-50: #fffbeb;
+  --color-amber-100: #fef3c7;
+  --color-amber-500: #f59e0b;
+  --color-amber-600: #d97706;
+  --color-amber-700: #b45309;
+
+  /* Semantic - Blueprint Blue (Info/Predictivo) */
+  --color-blue-50: #eff6ff;
+  --color-blue-100: #dbeafe;
+  --color-blue-500: #3b82f6;
+  --color-blue-600: #2563eb;
+  --color-blue-700: #1d4ed8;
+
+  /* Primary Interactive - Dark Ink */
+  --color-primary-base: var(--color-zinc-900);
+  --color-primary-hover: var(--color-zinc-800);
+
+  /* Surface Elevation */
+  --color-surface-base: var(--color-zinc-50);
+  --color-surface-1: #ffffff;
 }
 
-.animate-slide-in {
-  animation: slide-in 0.3s ease-out;
+body {
+  background-color: var(--color-surface-base);
+  color: var(--color-zinc-900);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
 }
+
+/* Base structural styles */
+table th {
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}
+
+/* Animations from before */
+@keyframes slide-in {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+.animate-slide-in { animation: slide-in 0.3s ease-out; }
 
 @keyframes fade-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
-
-.animate-fade-in {
-  animation: fade-in 0.2s ease-out;
-}
+.animate-fade-in { animation: fade-in 0.2s ease-out; }
 
 @keyframes scale-in {
-  from {
-    opacity: 0;
-    transform: scale(0.95);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
 }
-
-.animate-scale-in {
-  animation: scale-in 0.2s ease-out;
-}
+.animate-scale-in { animation: scale-in 0.2s ease-out; }

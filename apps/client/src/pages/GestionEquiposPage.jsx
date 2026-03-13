@@ -22,7 +22,7 @@ const certVencimientoBadge = (vencimiento) => {
 // Removed horasAlertaBadge
 
 const TAB_LABELS = [
-  { label: 'Todos', color: 'bg-slate-800 text-white' },
+  { label: 'Todos', color: 'bg-zinc-900 text-white' },
   { label: 'Operativos', color: 'bg-emerald-100 text-emerald-700' },
   { label: 'No Operativos', color: 'bg-red-100 text-red-700' },
   // { label: 'Alerta Horas', color: 'bg-amber-100 text-amber-700' },
@@ -60,16 +60,16 @@ const Pagination = ({ page, totalPages, total, onPrev, onNext, onGoto, pageSize 
 
   return (
     <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 sm:px-6 py-3 border-t border-slate-100 bg-slate-50/60">
-      <p className="text-xs text-slate-400 text-center sm:text-left">
-        Mostrando <span className="font-semibold text-slate-600">{from}–{to}</span> de{' '}
-        <span className="font-semibold text-slate-600">{total}</span> equipos
+      <p className="text-xs text-zinc-500 text-center sm:text-left font-mono">
+        Mostrando <span className="font-bold text-zinc-900">{from}–{to}</span> de{' '}
+        <span className="font-bold text-zinc-900">{total}</span> equipos
       </p>
 
       <div className="flex items-center gap-1">
         {/* Anterior */}
         <button
           onClick={onPrev} disabled={page === 1}
-          className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-white hover:text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors border border-transparent hover:border-slate-200"
+          className="w-7 h-7 flex items-center justify-center rounded-lg text-zinc-400 hover:bg-white hover:text-zinc-900 disabled:opacity-30 disabled:cursor-not-allowed transition-colors border border-transparent hover:border-zinc-200"
         >
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
         </button>
@@ -82,9 +82,9 @@ const Pagination = ({ page, totalPages, total, onPrev, onNext, onGoto, pageSize 
             <button
               key={p}
               onClick={() => onGoto(p)}
-              className={`w-7 h-7 flex items-center justify-center rounded-lg text-xs font-semibold transition-colors ${p === page
-                ? 'bg-slate-900 text-white'
-                : 'text-slate-500 hover:bg-white hover:text-slate-800 border border-transparent hover:border-slate-200'
+              className={`w-7 h-7 flex items-center justify-center rounded-lg text-xs font-mono font-bold transition-colors ${p === page
+                ? 'bg-zinc-900 text-white'
+                : 'text-zinc-500 hover:bg-white hover:text-zinc-900 border border-transparent hover:border-zinc-200'
                 }`}
             >
               {p}
@@ -95,7 +95,7 @@ const Pagination = ({ page, totalPages, total, onPrev, onNext, onGoto, pageSize 
         {/* Siguiente */}
         <button
           onClick={onNext} disabled={page === totalPages}
-          className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-white hover:text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors border border-transparent hover:border-slate-200"
+          className="w-7 h-7 flex items-center justify-center rounded-lg text-zinc-400 hover:bg-white hover:text-zinc-900 disabled:opacity-30 disabled:cursor-not-allowed transition-colors border border-transparent hover:border-zinc-200"
         >
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
         </button>
@@ -220,10 +220,10 @@ export const GestionEquiposPage = () => {
   };
 
   const kpiCards = [
-    { title: 'Total Equipos', value: kpis.total, bg: 'bg-slate-100', color: 'text-slate-600', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg> },
-    { title: 'Operativos', value: kpis.totalOperativos ?? 0, bg: 'bg-emerald-50', color: 'text-emerald-600', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
-    { title: 'No Operativos', value: kpis.totalNoOperativos ?? 0, bg: 'bg-red-50', color: 'text-red-600', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
-    { title: 'Alertas Horas', value: kpis.equiposConAlertaHoras ?? 0, bg: 'bg-amber-50', color: 'text-amber-600', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
+    { title: 'Total Equipos', value: kpis.total, bg: 'bg-zinc-100', color: 'text-zinc-700', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg> },
+    { title: 'Operativos', value: kpis.totalOperativos ?? 0, bg: 'bg-emerald-50', color: 'text-emerald-700', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
+    { title: 'No Operativos', value: kpis.totalNoOperativos ?? 0, bg: 'bg-red-50', color: 'text-red-700', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
+    { title: 'Alertas Horas', value: kpis.equiposConAlertaHoras ?? 0, bg: 'bg-amber-50', color: 'text-amber-700', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
   ];
 
   // ── Fetch detalle al abrir modal ──────────────────────────
@@ -270,7 +270,7 @@ export const GestionEquiposPage = () => {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#F5F6FA]">
+    <div className="flex h-screen overflow-hidden bg-zinc-50">
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       <main className="flex-1 flex flex-col overflow-hidden">
@@ -297,7 +297,7 @@ export const GestionEquiposPage = () => {
               <div className="mb-4 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-4">
                 <div className="flex flex-col sm:flex-row items-start font-medium text-amber-900 justify-between sm:items-center gap-2 sm:gap-3 mb-2">
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-amber-100 rounded-xl flex items-center justify-center text-amber-600">
+                    <div className="w-8 h-8 bg-amber-100/50 rounded-xl flex items-center justify-center text-amber-700 border border-amber-200/50">
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                     </div>
                     <div>
@@ -341,7 +341,7 @@ export const GestionEquiposPage = () => {
               </div>
             )}
 
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+            <div className="bg-white rounded-2xl border border-zinc-200 shadow-sm overflow-hidden flex flex-col">
 
               {/* Top bar */}
               <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between gap-4">
@@ -359,13 +359,13 @@ export const GestionEquiposPage = () => {
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setSelectedEquipo({ ...EQUIPO_VACIO })}
-                    className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-700 transition-colors"
+                    className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold border border-zinc-200 rounded-lg hover:bg-zinc-50 text-zinc-800 transition-colors"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                    Agregar Equipo
+                    Añadir Equipo
                   </button>
-                  <button onClick={() => fetchEquipos(page)} className="px-4 py-2 text-sm font-bold bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition-colors">
-                    Actualizar
+                  <button onClick={() => fetchEquipos(page)} className="px-4 py-2 text-sm font-bold border border-zinc-200 hover:border-zinc-300 text-zinc-900 rounded-lg transition-colors bg-white">
+                    Refrescar
                   </button>
                 </div>
               </div>
@@ -376,11 +376,11 @@ export const GestionEquiposPage = () => {
                   <button
                     key={tab.label}
                     onClick={() => setActiveTab(tab.label)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${activeTab === tab.label ? tab.color : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${activeTab === tab.label ? tab.color : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
                       }`}
                   >
                     {tab.label}
-                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${activeTab === tab.label ? 'bg-white/30' : 'bg-white text-slate-500'}`}>
+                    <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-full ${activeTab === tab.label ? 'bg-white/30' : 'bg-white text-zinc-500'}`}>
                       {tabCounts[tab.label] ?? 0}
                     </span>
                   </button>
@@ -390,7 +390,7 @@ export const GestionEquiposPage = () => {
               {/* Cabecera de tabla */}
               <div className="overflow-x-auto flex-1 flex flex-col">
                 <table className="w-full table-fixed min-w-[800px] text-left">
-                  <thead className="bg-slate-50 border-b border-slate-100 text-[10px] font-semibold text-slate-400 uppercase tracking-wider sticky top-0 z-10">
+                  <thead className="bg-zinc-50 border-b border-zinc-200 text-[10px] font-bold text-zinc-500 uppercase tracking-widest sticky top-0 z-10">
                     <tr>
                       <th className="w-1/4 px-6 py-3">Equipo</th>
                       <th className="w-1/6 px-6 py-3">Marca / Tipo</th>
@@ -434,32 +434,36 @@ export const GestionEquiposPage = () => {
                       return (
                         <tr
                           key={eq.id}
-                          className={`hover:bg-blue-50/40 transition-colors group cursor-pointer ${isNoOperativo ? 'bg-red-50/30' : ''}`}
+                          className={`hover:bg-zinc-50 transition-colors group cursor-pointer ${isNoOperativo ? 'bg-red-50/10' : ''}`}
                           onClick={() => handleSelectEquipo(eq)}
                         >
                           <td className="px-6 py-4 truncate">
-                            <p className="text-sm font-semibold text-slate-800 group-hover:text-blue-600 truncate">{eq.codigo}</p>
-                            <p className="text-xs text-slate-400 font-mono truncate">{eq.serial}</p>
-                            <p className="text-xs text-slate-400 font-mono truncate">Mod: {eq.modelo}</p>
+                            <p className="text-sm font-bold text-zinc-900 font-mono truncate">{eq.codigo}</p>
+                            <p className="text-xs text-zinc-500 font-mono truncate">{eq.serial}</p>
+                            <p className="text-xs text-zinc-500 truncate mt-0.5">Mod: {eq.modelo}</p>
                           </td>
                           <td className="px-6 py-4 truncate">
-                            <p className="text-xs font-semibold text-slate-700 truncate">{eq.marca?.nombre ?? '—'}</p>
-                            <span className="inline-block mt-0.5 text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-medium truncate max-w-full">
+                            <p className="text-xs font-semibold text-zinc-800 truncate">{eq.marca?.nombre ?? '—'}</p>
+                            <span className="inline-block mt-1 text-[10px] bg-zinc-100 border border-zinc-200 text-zinc-600 px-2 py-0.5 rounded-md font-medium truncate max-w-full">
                               {eq.tipo?.nombre ?? '—'}
                             </span>
                           </td>
                           <td className="px-6 py-4 truncate">
-                            <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full inline-flex items-center gap-1 ${isNoOperativo ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                              <span className={`w-1.5 h-1.5 rounded-full ${isNoOperativo ? 'bg-red-500' : 'bg-emerald-500'}`} />
-                              {isNoOperativo ? 'No Operativo' : 'Operativo'}
-                            </span>
-                            <p className="text-xs text-slate-400 truncate mt-1">{eq.ubicacion?.nombre ?? '—'}</p>
+                            <div className="flex flex-col items-start gap-1">
+                              <span className="inline-flex items-center gap-1.5">
+                                <span className={`w-2 h-2 rounded-full ${isNoOperativo ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]' : 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]'}`} />
+                                <span className={`text-[11px] font-bold tracking-wide uppercase ${isNoOperativo ? 'text-red-700' : 'text-emerald-700'}`}>
+                                  {isNoOperativo ? 'No Operativo' : 'Operativo'}
+                                </span>
+                              </span>
+                              <p className="text-xs text-zinc-500 truncate ml-3.5">{eq.ubicacion?.nombre ?? '—'}</p>
+                            </div>
                           </td>
                           <td className="px-6 py-4 truncate">
                             <div className="flex flex-col items-start gap-1">
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-xs font-bold text-slate-700 font-mono text-right w-12">{eq.horasAcumuladas ?? 0}h</span>
-                                <span className="text-[10px] text-slate-400">tot</span>
+                              <div className="flex items-baseline gap-1">
+                                <span className="text-sm font-bold text-zinc-900 font-mono">{eq.horasAcumuladas?.toLocaleString() ?? 0}</span>
+                                <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">h.</span>
                               </div>
                               {alertaEquipo && (
                                 <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded inline-flex items-center gap-1 ${alertaEquipo.nivelAlerta === 'critico' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
@@ -471,15 +475,15 @@ export const GestionEquiposPage = () => {
                           <td className="px-6 py-4 truncate">
                             {ultimoMant ? (
                               <>
-                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full inline-block truncate max-w-full ${otBadgeClass(ultimoMant.tipo?.nombre)}`}>
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded border inline-block truncate max-w-full ${otBadgeClass(ultimoMant.tipo?.nombre)}`}>
                                   {ultimoMant.tipo?.nombre}
                                 </span>
-                                <p className="text-xs text-slate-500 mt-1 whitespace-nowrap">
+                                <p className="text-xs text-zinc-500 mt-1 whitespace-nowrap font-mono">
                                   {new Date(ultimoMant.fechaServicio).toLocaleDateString('es-VE')}
                                 </p>
                               </>
                             ) : (
-                              <p className="text-xs text-slate-300 italic">Sin registros</p>
+                              <p className="text-xs text-zinc-400 italic">—</p>
                             )}
                           </td>
                           <td className="px-6 py-4 truncate">
@@ -517,13 +521,13 @@ export const GestionEquiposPage = () => {
               <h3 className="text-sm font-bold text-slate-900 mb-3">Resumen</h3>
               <div className="space-y-3">
                 {kpiCards.map((k) => (
-                  <div key={k.title} className="flex items-center gap-3 p-3 rounded-xl border border-slate-100">
-                    <div className={`w-10 h-10 ${k.bg} ${k.color} rounded-xl flex items-center justify-center flex-shrink-0 text-lg`}>
+                  <div key={k.title} className="flex items-center gap-3 p-3 rounded-xl border border-zinc-200 bg-white">
+                    <div className={`w-10 h-10 ${k.bg} ${k.color} rounded-lg flex items-center justify-center flex-shrink-0 text-lg border border-current opacity-80`}>
                       {k.icon}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs text-slate-500 truncate">{k.title}</p>
-                      <span className="text-xl font-bold text-slate-900">{k.value}</span>
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 truncate">{k.title}</p>
+                      <span className="text-xl font-mono font-bold text-zinc-900">{k.value}</span>
                     </div>
                   </div>
                 ))}
@@ -541,10 +545,10 @@ export const GestionEquiposPage = () => {
 
             <button
               onClick={() => setSelectedEquipo({ ...EQUIPO_VACIO })}
-              className="w-full py-3 border-2 border-dashed border-slate-200 hover:border-emerald-400 hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2"
+              className="w-full py-3 border border-zinc-200 hover:border-zinc-300 bg-zinc-900 text-white rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-              Agregar Nuevo Equipo
+              Nuevo Equipo
             </button>
           </div>
         </div>
