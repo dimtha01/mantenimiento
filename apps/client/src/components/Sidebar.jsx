@@ -5,13 +5,26 @@ export const Sidebar = ({ isOpen = true, onClose }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const [activeItem, setActiveItem] = useState(location.pathname);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Detectar si es móvil
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 1024);
+    };
+
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Cerrar sidebar al cambiar de ruta en móvil
   useEffect(() => {
-    if (window.innerWidth < 1024 && onClose) {
+    if (isMobile && isOpen && onClose) {
       onClose();
     }
-  }, [location.pathname, onClose]);
+  }, [location.pathname]);
 
   const menuItems = [
     {
@@ -90,7 +103,7 @@ export const Sidebar = ({ isOpen = true, onClose }) => {
   return (
     <>
       {/* Overlay para móvil */}
-      {isOpen && window.innerWidth < 1024 && (
+      {isOpen && isMobile && (
         <div
           className="fixed inset-0 bg-black/50 z-40 lg:hidden"
           onClick={onClose}
@@ -99,41 +112,48 @@ export const Sidebar = ({ isOpen = true, onClose }) => {
 
       <aside className={`
         fixed lg:static inset-y-0 left-0 z-50
-        w-20 lg:w-20
+        w-64 lg:w-20
         bg-white border-r border-gray-200
-        flex flex-col items-center py-6 gap-4
+        flex flex-col lg:items-center py-6 px-4 lg:px-0 gap-4
         transition-transform duration-300 ease-in-out
         ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
       `}>
         {/* Logo */}
-        <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-700 rounded-xl flex items-center justify-center text-white font-bold text-xl shadow-lg mb-4">
-          {/* <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-        </svg> */}
+        <div className="flex items-center gap-3 lg:hidden mb-4">
+          <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-700 rounded-xl flex items-center justify-center text-white font-bold text-xl shadow-lg">
+            <h1>BD</h1>
+          </div>
+          <div className="flex-1">
+            <h2 className="text-lg font-bold text-slate-900">Mantenimiento</h2>
+            <p className="text-xs text-slate-500">BD Maintenance</p>
+          </div>
+        </div>
+        {/* Logo solo icono en desktop */}
+        <div className="hidden lg:flex w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-700 rounded-xl items-center justify-center text-white font-bold text-xl shadow-lg mb-4">
           <h1>BD</h1>
         </div>
 
         {/* Menu Items */}
-        <nav className="flex-1 flex flex-col items-center gap-2 w-full px-3">
+        <nav className="flex-1 flex flex-col items-center lg:items-stretch gap-2 w-full lg:w-auto lg:px-3">
           {menuItems.map((item) => (
             <button
               key={item.path}
               className={`
-              w-12 h-12 flex items-center justify-center rounded-xl transition-all duration-200
+              flex items-center gap-3 px-3 py-2.5 lg:w-12 lg:h-12 lg:justify-center lg:p-0 rounded-xl transition-all duration-200
               ${activeItem === item.path
-                  ? 'bg-slate-900 text-white shadow-lg scale-105'
-                  : 'text-slate-400 hover:bg-slate-100 hover:text-slate-700'
+                  ? 'bg-slate-900 text-white shadow-lg lg:scale-105'
+                  : 'text-slate-600 hover:bg-slate-100 lg:text-slate-400 lg:hover:bg-slate-100 lg:hover:text-slate-700'
                 }
             `}
-              title={item.label}
               onClick={() => {
                 setActiveItem(item.path);
                 navigate(item.path);
                 // Cerrar sidebar en móvil después de navegar
-                if (window.innerWidth < 1024 && onClose) onClose();
+                if (isMobile && onClose) onClose();
               }}
             >
-              {item.icon}
+              <span className="lg:hidden">{item.label}</span>
+              <span className="hidden lg:flex">{item.icon}</span>
             </button>
           ))}
         </nav>
@@ -141,7 +161,7 @@ export const Sidebar = ({ isOpen = true, onClose }) => {
         {/* Logout Button */}
         <button
           onClick={handleLogout}
-          className="w-12 h-12 flex items-center justify-center rounded-xl text-red-500 hover:bg-red-50 transition-all duration-200"
+          className="w-12 h-12 lg:w-12 lg:h-12 flex items-center justify-center rounded-xl text-red-500 hover:bg-red-50 transition-all duration-200"
           title="Cerrar sesión"
         >
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">

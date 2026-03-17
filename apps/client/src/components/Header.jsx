@@ -74,15 +74,15 @@ export const Header = ({
   const noLeidas = allNotifs.filter((n) => !n.leida).length;
 
   return (
-    <header className="bg-white border-b border-gray-200 px-3 md:px-8 py-4 md:py-5 shrink-0 relative z-20">
+    <header className="bg-white border-b border-gray-200 px-3 md:px-8 py-4 md:py-5 shrink-0 relative z-30">
       <div className="flex items-center gap-3">
 
         {/* Menú hamburguesa para móvil */}
         {onMenuClick && (
           <button
             onClick={onMenuClick}
-            className="lg:hidden w-10 h-10 flex items-center justify-center rounded-xl hover:bg-slate-100 transition-colors"
-          >
+            className="lg:hidden w-10 h-10 flex items-center justify-center rounded-xl hover:bg-slate-100 active:bg-slate-200 transition-colors cursor-pointer"
+            >
             <svg className="w-6 h-6 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>

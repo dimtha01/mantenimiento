@@ -913,7 +913,7 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
               <div className="grid grid-cols-2 gap-4">
                 {/* Ubicación */}
                 <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Ubicación / Unidad</label>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Ubicación</label>
                   <CatalogCombobox
                     value={form.unidadNegocioId}
                     items={catalogos.ubicaciones}

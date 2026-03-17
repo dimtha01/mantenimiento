@@ -3,21 +3,7 @@ import { Sidebar } from '../components/Sidebar';
 import { Header } from '../components/Header';
 import { Settings, Package, DollarSign, X, Plus } from 'lucide-react';
 
-const TIPOS = ['FILTRO', 'CORREA', 'ACEITE', 'OTRO'];
-const TIPO_COLORS = {
-    FILTRO: 'bg-blue-100 text-blue-700',
-    CORREA: 'bg-amber-100 text-amber-700',
-    ACEITE: 'bg-emerald-100 text-emerald-700',
-    OTRO: 'bg-slate-100 text-slate-600',
-};
-const TIPO_ICONS = {
-    FILTRO: <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>,
-    CORREA: <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><circle cx="12" cy="12" r="9" /><path strokeLinecap="round" strokeLinejoin="round" d="M12 3v18" /></svg>,
-    ACEITE: <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 2v6m0 0v6m0-6h6m-6 0H6" /><circle cx="12" cy="12" r="3" /></svg>,
-    OTRO: <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><rect x="3" y="3" width="18" height="18" rx="2" /></svg>,
-};
-
-const FORM_EMPTY = { nombre: '', tipo: 'FILTRO', codigo: '', costo: '' };
+const FORM_EMPTY = { nombre: '', tipoRepuestoId: '', codigo: '', costo: '' };
 
 /* ── Inline confirm delete button ── */
 const DeleteBtn = ({ onConfirm }) => {
@@ -47,12 +33,22 @@ export const RepuestosPage = () => {
     const [searchQ, setSearchQ] = useState(''); // Búsqueda de repuestos
     const [equipoSearch, setEquipoSearch] = useState(''); // Búsqueda de equipos
     const [tipoFilter, setTipoFilter] = useState('TODOS');
+    const [tiposRepuesto, setTiposRepuesto] = useState([]); // Catálogo de tipos
     const [showForm, setShowForm] = useState(false);
     const [form, setForm] = useState(FORM_EMPTY);
     const [editId, setEditId] = useState(null);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState(null);
     const searchTimeoutRef = useRef(null);
+
+    /* Load catálogos */
+    useEffect(() => {
+        // Cargar tipos de repuesto
+        fetch('/api/catalogos/tipos-repuestos')
+            .then(r => r.json())
+            .then(json => setTiposRepuesto(json.data ?? []))
+            .catch(err => console.error('Error cargando tipos de repuesto:', err));
+    }, []);
 
     /* Load equipos list */
     useEffect(() => {
@@ -91,7 +87,7 @@ export const RepuestosPage = () => {
         searchTimeoutRef.current = setTimeout(async () => {
             const params = new URLSearchParams({ equipoId: selectedEquipoId });
             if (searchQ.trim()) params.set('q', searchQ);
-            if (tipoFilter !== 'TODOS') params.set('tipo', tipoFilter);
+            if (tipoFilter !== 'TODOS') params.set('tipoRepuestoId', tipoFilter);
 
             try {
                 const res = await fetch(`/api/repuestos?${params}`);
@@ -131,26 +127,90 @@ export const RepuestosPage = () => {
         }
     }, [selectedEquipoId]);
 
-    const kpi = TIPOS.map(t => ({ tipo: t, count: allRepuestos.filter(r => r.tipo === t).length }));
+    // Solo mostrar KPIs para tipos que tienen repuestos
+    const kpi = tiposRepuesto
+        .map(t => ({ tipo: t, count: allRepuestos.filter(r => r.tipoRepuestoId === t.id).length }))
+        .filter(k => k.count > 0); // Solo tipos con repuestos
+
     const totalCosto = allRepuestos.reduce((s, r) => s + (Number(r.costo) || 0), 0);
+
+    // Función para recargar tipos de repuesto
+    const recargarTiposRepuesto = async () => {
+        try {
+            const res = await fetch('/api/catalogos/tipos-repuestos');
+            const json = await res.json();
+            if (json.ok) {
+                setTiposRepuesto(json.data ?? []);
+            }
+        } catch (err) {
+            console.error('Error recargando tipos:', err);
+        }
+    };
 
     const resetForm = () => { setForm(FORM_EMPTY); setEditId(null); setShowForm(false); setError(null); };
 
     const handleEdit = (r) => {
-        setForm({ nombre: r.nombre, tipo: r.tipo, codigo: r.codigo ?? '', costo: r.costo != null ? String(r.costo) : '' });
+        setForm({
+            nombre: r.nombre,
+            tipoRepuestoId: r.tipoRepuesto ? r.tipoRepuesto.nombre : '',
+            codigo: r.codigo ?? '',
+            costo: r.costo != null ? String(r.costo) : ''
+        });
         setEditId(r.id);
         setShowForm(true);
     };
 
     const handleSave = async () => {
         if (!form.nombre.trim()) { setError('El nombre es obligatorio.'); return; }
+
         setSaving(true); setError(null);
         try {
+            // Si el tipoRepuestoId no es un número válido, buscar o crear el tipo
+            let tipoRepuestoIdFinal = null;
+            if (form.tipoRepuestoId && form.tipoRepuestoId.trim()) {
+                const valor = form.tipoRepuestoId.trim();
+
+                // Si es un número, usarlo directamente
+                if (/^\d+$/.test(valor)) {
+                    tipoRepuestoIdFinal = Number(valor);
+                } else {
+                    // Es un nombre, buscar si existe
+                    const tipoExistente = tiposRepuesto.find(t => t.nombre.toLowerCase() === valor.toLowerCase());
+
+                    if (tipoExistente) {
+                        tipoRepuestoIdFinal = tipoExistente.id;
+                    } else {
+                        // Crear nuevo tipo
+                        const tipoRes = await fetch('/api/catalogos/tipos-repuestos', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ nombre: valor }),
+                        });
+                        const tipoJson = await tipoRes.json();
+
+                        if (!tipoJson.ok || !tipoJson.data) {
+                            throw new Error(tipoJson.message || 'Error al crear tipo de repuesto');
+                        }
+
+                        tipoRepuestoIdFinal = tipoJson.data.id;
+
+                        // Recargar tipos después de crear uno nuevo
+                        await recargarTiposRepuesto();
+                    }
+                }
+            }
+
             const url = editId ? `/api/repuestos/${editId}` : '/api/repuestos';
             const method = editId ? 'PUT' : 'POST';
             const res = await fetch(url, {
                 method, headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ...form, equipoId: selectedEquipoId, costo: form.costo !== '' ? Number(form.costo) : null }),
+                body: JSON.stringify({
+                    nombre: form.nombre,
+                    equipoId: selectedEquipoId,
+                    tipoRepuestoId: tipoRepuestoIdFinal,
+                    codigo: form.codigo || null,
+                    costo: form.costo !== '' ? Number(form.costo) : null
+                }),
             });
             const json = await res.json();
             if (!json.ok) throw new Error(json.message);
@@ -158,7 +218,7 @@ export const RepuestosPage = () => {
             // Recargar lista actual con filtros aplicados
             const params = new URLSearchParams({ equipoId: selectedEquipoId });
             if (searchQ.trim()) params.set('q', searchQ);
-            if (tipoFilter !== 'TODOS') params.set('tipo', tipoFilter);
+            if (tipoFilter !== 'TODOS') params.set('tipoRepuestoId', tipoFilter);
 
             const reloadRes = await fetch(`/api/repuestos?${params}`);
             const reloadJson = await reloadRes.json();
@@ -169,9 +229,14 @@ export const RepuestosPage = () => {
             const kpiJson = await kpiRes.json();
             setAllRepuestos(kpiJson.data ?? []);
 
+            setShowForm(false);
             resetForm();
-        } catch (e) { setError(e.message); }
-        finally { setSaving(false); }
+        } catch (e) {
+            console.error('Error en handleSave:', e);
+            setError(e.message || 'Error al guardar repuesto');
+        } finally {
+            setSaving(false);
+        }
     };
 
     const handleDelete = async (id) => {
@@ -260,10 +325,12 @@ export const RepuestosPage = () => {
                         {/* KPIs */}
                         <div className="grid grid-cols-5 gap-3">
                             {kpi.map(k => (
-                                <div key={k.tipo} className={`rounded-xl p-3 text-center border ${TIPO_COLORS[k.tipo] ?? 'bg-slate-100 text-slate-600'} border-transparent`}>
-                                    <div className="text-xl flex justify-center text-slate-700">{React.cloneElement(TIPO_ICONS[k.tipo])}</div>
+                                <div key={k.tipo.id} className="rounded-xl p-3 text-center border bg-slate-50 border-slate-200">
+                                    <div className="text-xl flex justify-center text-slate-700">
+                                        <Package className="w-6 h-6" />
+                                    </div>
                                     <p className="text-lg font-bold mt-1">{k.count}</p>
-                                    <p className="text-[10px] font-semibold">{k.tipo.charAt(0) + k.tipo.slice(1).toLowerCase()}</p>
+                                    <p className="text-[10px] font-semibold text-slate-600 truncate">{k.tipo.nombre}</p>
                                 </div>
                             ))}
                             <div className="rounded-xl p-3 text-center bg-slate-100 border border-slate-200">
@@ -275,36 +342,110 @@ export const RepuestosPage = () => {
                             </div>
                         </div>
 
-                        {/* Form */}
+                        {/* Formulario Modal */}
                         {showForm && (
-                            <div className="border border-blue-200 rounded-2xl p-5 bg-blue-50/30 space-y-3">
-                                <p className="text-sm font-bold text-slate-900">{editId ? 'Editar Repuesto' : 'Agregar Repuesto'}</p>
-                                {error && <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div className="col-span-2">
-                                        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Nombre del repuesto</label>
-                                        <input value={form.nombre} onChange={e => setForm(p => ({ ...p, nombre: e.target.value }))} placeholder="Ej: Filtro de aceite HF-101" className={inputCls} />
+                            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                                {/* Backdrop */}
+                                <div
+                                    className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+                                    onClick={() => { setShowForm(false); resetForm(); }}
+                                />
+                                {/* Modal */}
+                                <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                                    <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-gradient-to-r from-slate-50 to-white">
+                                        <div>
+                                            <h3 className="text-lg font-bold text-slate-800">{editId ? 'Editar Repuesto' : 'Nuevo Repuesto'}</h3>
+                                            <p className="text-xs text-slate-500 mt-0.5">{equipo?.modelo ?? 'Equipo'}</p>
+                                        </div>
+                                        <button
+                                            onClick={() => { setShowForm(false); resetForm(); }}
+                                            className="text-slate-400 hover:text-slate-600 transition-colors"
+                                        >
+                                            <X className="w-5 h-5" />
+                                        </button>
                                     </div>
-                                    <div>
-                                        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Tipo</label>
-                                        <select value={form.tipo} onChange={e => setForm(p => ({ ...p, tipo: e.target.value }))} className={selectCls}>
-                                            {TIPOS.map(t => <option key={t} value={t}>{t.charAt(0) + t.slice(1).toLowerCase()}</option>)}
-                                        </select>
+
+                                    <div className="p-6 space-y-4">
+                                        {error && (
+                                            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                                                <p className="text-sm text-red-600">{error}</p>
+                                            </div>
+                                        )}
+
+                                        <div>
+                                            <label className="block text-sm font-semibold text-slate-700 mb-1.5">Nombre del repuesto *</label>
+                                            <input
+                                                value={form.nombre}
+                                                onChange={e => setForm(p => ({ ...p, nombre: e.target.value }))}
+                                                placeholder="Ej: Filtro de aceite HF-101"
+                                                className={inputCls}
+                                                autoFocus
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-semibold text-slate-700 mb-1.5">Tipo</label>
+                                            <input
+                                                value={form.tipoRepuestoId}
+                                                onChange={e => setForm(p => ({ ...p, tipoRepuestoId: e.target.value }))}
+                                                placeholder="Ej: Filtro, Correa, Aceite..."
+                                                list="tipos-repuestos-list"
+                                                className={inputCls}
+                                            />
+                                            <datalist id="tipos-repuestos-list">
+                                                {tiposRepuesto.map(t => (
+                                                    <option key={t.id} value={t.id}>{t.nombre}</option>
+                                                ))}
+                                            </datalist>
+                                            <p className="text-xs text-slate-400 mt-1">Escribe para buscar o selecciona un tipo existente</p>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Código</label>
+                                                <input
+                                                    value={form.codigo}
+                                                    onChange={e => setForm(p => ({ ...p, codigo: e.target.value }))}
+                                                    placeholder="Ej: HF-101"
+                                                    className={inputCls}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Costo unitario ($)</label>
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    step="0.01"
+                                                    value={form.costo}
+                                                    onChange={e => setForm(p => ({ ...p, costo: e.target.value }))}
+                                                    placeholder="0.00"
+                                                    className={inputCls}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="flex gap-2 pt-2">
+                                            <button
+                                                onClick={handleSave}
+                                                disabled={saving}
+                                                className="flex-1 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-sm font-bold rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                                            >
+                                                {saving && (
+                                                    <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12c0 2.22-.796 4.267-2.118 5.871l-2.828-2.829A7.966 7.966 0 014 12c0 .792-.102 1.561-.291 2.291z"></path>
+                                                    </svg>
+                                                )}
+                                                {saving ? 'Guardando...' : editId ? 'Actualizar' : 'Guardar'}
+                                            </button>
+                                            <button
+                                                onClick={() => { setShowForm(false); resetForm(); }}
+                                                className="px-5 py-2.5 border border-slate-200 text-slate-600 text-sm font-semibold rounded-xl hover:bg-slate-50 transition-colors"
+                                            >
+                                                Cancelar
+                                            </button>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Código / Referencia</label>
-                                        <input value={form.codigo} onChange={e => setForm(p => ({ ...p, codigo: e.target.value }))} placeholder="Ej: HF-101" className={inputCls} />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Costo unitario ($)</label>
-                                        <input type="number" min="0" step="0.01" value={form.costo} onChange={e => setForm(p => ({ ...p, costo: e.target.value }))} placeholder="0.00" className={inputCls} />
-                                    </div>
-                                </div>
-                                <div className="flex gap-2 pt-1">
-                                    <button onClick={handleSave} disabled={saving} className="flex-1 py-2 bg-slate-900 text-white text-sm font-bold rounded-xl hover:bg-slate-800 disabled:opacity-60 transition-colors">
-                                        {saving ? 'Guardando...' : editId ? 'Actualizar' : 'Agregar'}
-                                    </button>
-                                    <button onClick={resetForm} className="px-4 py-2 border border-slate-200 text-slate-500 text-sm font-semibold rounded-xl hover:bg-slate-50 transition-colors">Cancelar</button>
                                 </div>
                             </div>
                         )}
@@ -318,11 +459,21 @@ export const RepuestosPage = () => {
                                 placeholder="Buscar repuesto..."
                                 className="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300 bg-white flex-1 max-w-xs"
                             />
-                            <div className="flex gap-1">
-                                {['TODOS', ...TIPOS].map(t => (
-                                    <button key={t} onClick={() => setTipoFilter(t)}
-                                        className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${tipoFilter === t ? 'bg-slate-900 text-white' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'}`}
-                                    >{t === 'TODOS' ? 'Todos' : t.charAt(0) + t.slice(1).toLowerCase()}</button>
+                            <div className="flex gap-1 flex-wrap">
+                                <button
+                                    key="TODOS"
+                                    onClick={() => setTipoFilter('TODOS')}
+                                    className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${tipoFilter === 'TODOS' ? 'bg-slate-900 text-white' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'}`}
+                                >Todos</button>
+                                {tiposRepuesto
+                                    .filter(t => allRepuestos.some(r => r.tipoRepuestoId === t.id))
+                                    .slice(0, 4) // Máximo 4 tipos
+                                    .map(t => (
+                                    <button
+                                        key={t.id}
+                                        onClick={() => setTipoFilter(String(t.id))}
+                                        className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${tipoFilter === String(t.id) ? 'bg-slate-900 text-white' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'}`}
+                                    >{t.nombre}</button>
                                 ))}
                             </div>
                         </div>
@@ -341,11 +492,17 @@ export const RepuestosPage = () => {
                             <div className="space-y-2">
                                 {repuestos.map(r => (
                                     <div key={r.id} className="flex items-center gap-4 px-4 py-3 bg-white border border-slate-200 rounded-xl hover:shadow-sm transition-shadow">
-                                        <span className="text-xl shrink-0 flex justify-center text-slate-700">{React.cloneElement(TIPO_ICONS[r.tipo] || TIPO_ICONS.OTRO)}</span>
+                                        <span className="text-xl shrink-0 flex justify-center text-slate-700">
+                                            <Package className="w-5 h-5" />
+                                        </span>
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center gap-2">
                                                 <p className="text-sm font-semibold text-slate-800">{r.nombre}</p>
-                                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${TIPO_COLORS[r.tipo] ?? 'bg-slate-100 text-slate-600'}`}>{r.tipo}</span>
+                                                {r.tipoRepuesto && (
+                                                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 bg-blue-100 text-blue-700">
+                                                        {r.tipoRepuesto.nombre}
+                                                    </span>
+                                                )}
                                             </div>
                                             {r.codigo && <p className="text-[10px] text-slate-400 font-mono">{r.codigo}</p>}
                                         </div>

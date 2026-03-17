@@ -1,0 +1,9 @@
+model TipoRepuesto {
+  id        Int        @id @default(autoincrement())
+  nombre    String
+  activo    Boolean    @default(true)
+
+  repuestos Repuesto[]
+
+  @@map("tipos_repuesto")
+}
