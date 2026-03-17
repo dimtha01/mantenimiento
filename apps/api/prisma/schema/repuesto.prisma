@@ -8,6 +8,7 @@ model Repuesto {
 
     equipo         Equipo                  @relation(fields: [equipoId], references: [id], onDelete: Cascade)
     mantenimientos RepuestoMantenimiento[]
+    fallas         RepuestoFalla[]
 
     @@index([equipoId])
     @@map("repuestos")

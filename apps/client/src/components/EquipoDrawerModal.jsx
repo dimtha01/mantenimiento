@@ -334,6 +334,8 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
   const [fallaSaving, setFallaSaving] = useState(false);
   const [estadoSaving, setEstadoSaving] = useState(false);
   const [resolverFallaModal, setResolverFallaModal] = useState({ visible: false, fallaId: null, solucion: '' });
+  const [repuestosOptions, setRepuestosOptions] = useState([]);
+  const [repuestosSeleccionados, setRepuestosSeleccionados] = useState([]);
 
   /* ── cargar catálogos ──────────────────────────────── */
   const fetchCatalogos = useCallback(async () => {
@@ -394,6 +396,20 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
       if (prevEquipoId.current !== equipo.id) {
         setActiveTab('general');
         setShowCertForm(false);
+
+        // Cargar repuestos del equipo para el selector de fallas
+        fetch(`/api/repuestos?equipoId=${equipo.id}`)
+          .then(r => r.json())
+          .then(json => {
+            setRepuestosOptions(json.data ?? []);
+            setRepuestosSeleccionados([]);
+          })
+          .catch(err => {
+            console.error('Error cargando repuestos:', err);
+            setRepuestosOptions([]);
+          });
+
+        prevEquipoId.current = equipo.id;
         setShowFallaForm(false);
       }
       prevEquipoId.current = equipo.id;
@@ -527,21 +543,47 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
     if (!newFalla.descripcion) return;
     setFallaSaving(true);
     try {
+      const payload = {
+        ...newFalla,
+        repuestos: repuestosSeleccionados.map(r => ({
+          repuestoId: r.id,
+          cantidad: r.cantidad,
+        })),
+      };
       const res = await fetch(`/api/equipos/${equipo.id}/fallas`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newFalla),
+        body: JSON.stringify(payload),
       });
       const json = await res.json();
       if (!json.ok) throw new Error(json.message);
       if (json.equipo) onSave(null, json.equipo);
-      setNewFalla({ descripcion: '', severidad: 'MEDIA', fecha: new Date().toISOString().split('T')[0] });
+      setNewFalla({ descripcion: '', severidad: 'MEDIA', fecha: new Date().toISOString().split('T')[0], responsable: '', costoReparacion: '' });
+      setRepuestosSeleccionados([]);
       setShowFallaForm(false);
     } catch (e) {
       console.error('Error registrando falla:', e);
     } finally {
       setFallaSaving(false);
     }
+  };
+
+  /* ── handler: toggle repuesto en falla ── */
+  const toggleRepuestoFalla = (repuesto) => {
+    const yaSeleccionado = repuestosSeleccionados.find(r => r.id === repuesto.id);
+    if (yaSeleccionado) {
+      setRepuestosSeleccionados(prev => prev.filter(r => r.id !== repuesto.id));
+    } else {
+      setRepuestosSeleccionados(prev => [...prev, { id: repuesto.id, nombre: repuesto.nombre, codigo: repuesto.codigo, cantidad: 1 }]);
+    }
+  };
+
+  const updateRepCantidadFalla = (repuestoId, cantidad) => {
+    setRepuestosSeleccionados(prev =>
+      prev.map(r =>
+        r.id === repuestoId ? { ...r, cantidad: Math.max(1, Number(cantidad) || 1) } : r
+      )
+    );
   };
 
   /* ── handler: actualizar falla ── */
@@ -1514,6 +1556,29 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
                         )}
                       </div>
                     )}
+
+                    {/* Repuestos estimados */}
+                    {falla.repuestos && falla.repuestos.length > 0 && (
+                      <div className="mt-2 p-2 bg-blue-50 border border-blue-100 rounded-lg">
+                        <p className="text-xs font-semibold text-blue-800 mb-1.5 flex items-center gap-1.5">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
+                          Repuestos Estimados
+                        </p>
+                        <div className="space-y-1">
+                          {falla.repuestos.map(rf => (
+                            <div key={rf.id} className="flex items-center justify-between text-xs">
+                              <span className="text-slate-700">
+                                {rf.repuesto?.nombre || 'Repuesto'} {rf.repuesto?.codigo ? `(${rf.repuesto.codigo})` : ''}
+                              </span>
+                              <span className="font-semibold text-blue-700">
+                                x{rf.cantidad}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     {falla.estado !== 'RESUELTA' && (
                       <div className="flex gap-2 mt-3">
                         {falla.estado === 'ABIERTA' && (
@@ -1575,7 +1640,7 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
                         className={inputCls}
                       />
                     </Field>
-                    <Field label="Costo de Reparación ($)">
+                    <Field label="Costo Estimado ($)">
                       <input
                         type="number"
                         min="0"
@@ -1587,6 +1652,34 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
                       />
                     </Field>
                   </div>
+
+                  {/* Selector Multi-Repuestos */}
+                  {repuestosOptions.length > 0 && (
+                    <div className="border border-slate-200 rounded-xl p-3 bg-white">
+                      <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Repuestos Estimados</label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto pr-2">
+                        {repuestosOptions.map(rep => {
+                          const sel = repuestosSeleccionados.find(x => x.id === rep.id);
+                          return (
+                            <div key={rep.id} className={`flex items-center justify-between border rounded-lg px-2 py-1.5 transition-colors ${sel ? 'border-blue-500 bg-blue-50 text-blue-900' : 'border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50'}`}>
+                              <label className="flex items-center gap-2 cursor-pointer flex-1 min-w-0">
+                                <input type="checkbox" checked={!!sel} onChange={() => toggleRepuestoFalla(rep)} className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer" />
+                                <span className="text-xs font-medium truncate">{rep.nombre} {rep.codigo ? `(${rep.codigo})` : ''}</span>
+                              </label>
+                              {sel && (
+                                <input
+                                  type="number" min="1" value={sel.cantidad}
+                                  onChange={e => updateRepCantidadFalla(rep.id, e.target.value)}
+                                  className="ml-2 w-16 text-xs px-2 py-0.5 border border-blue-200 rounded text-center focus:outline-none focus:border-blue-500"
+                                />
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="flex gap-2 pt-1">
                     <button onClick={handleAddFalla} disabled={fallaSaving} className="flex-1 py-2 bg-slate-900 text-white text-sm font-bold rounded-xl hover:bg-slate-800 transition-colors disabled:opacity-60">
                       {fallaSaving ? 'Guardando...' : 'Registrar Falla'}
