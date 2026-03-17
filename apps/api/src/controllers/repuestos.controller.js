@@ -1,17 +1,34 @@
 import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
-/* ── GET /api/repuestos?equipoId=1 ── */
+/* ── GET /api/repuestos?equipoId=1&q=búsqueda&tipo=FILTRO ── */
 export const getRepuestos = async (req, res) => {
     try {
-        const { equipoId } = req.query;
+        const { equipoId, q, tipo } = req.query;
 
         if (!equipoId) {
             return res.status(400).json({ ok: false, message: "Se requiere el parámetro equipoId" });
         }
 
+        // Construir condiciones de búsqueda
+        const where = { equipoId: Number(equipoId) };
+
+        // Búsqueda por nombre o código
+        if (q && q.trim()) {
+            const searchTerm = q.trim();
+            where.OR = [
+                { nombre: { contains: searchTerm, mode: 'insensitive' } },
+                { codigo: { contains: searchTerm, mode: 'insensitive' } }
+            ];
+        }
+
+        // Filtrar por tipo
+        if (tipo && tipo !== 'TODOS') {
+            where.tipo = tipo.toUpperCase();
+        }
+
         const repuestos = await prisma.repuesto.findMany({
-            where: { equipoId: Number(equipoId) },
+            where,
             orderBy: { nombre: "asc" },
             include: {
                 mantenimientos: {

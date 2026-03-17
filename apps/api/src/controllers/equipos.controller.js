@@ -22,6 +22,13 @@ const INCLUDE_FULL = {
   },
   fallas: {
     orderBy: { fecha: "desc" },
+    include: {
+      repuestos: {
+        include: {
+          repuesto: true,
+        },
+      },
+    },
   },
 };
 
@@ -46,6 +53,13 @@ const INCLUDE_LIST = {
     where: { estado: { not: "RESUELTA" } },
     orderBy: { fecha: "desc" },
     take: 3,
+    include: {
+      repuestos: {
+        include: {
+          repuesto: true,
+        },
+      },
+    },
   },
 };
 
@@ -512,7 +526,7 @@ export const cambiarEstadoOperativo = async (req, res) => {
 export const createFalla = async (req, res) => {
   try {
     const equipoId = Number(req.params.id);
-    const { descripcion, severidad, fecha, responsable, costoReparacion } = req.body;
+    const { descripcion, severidad, fecha, responsable, costoReparacion, repuestos } = req.body;
 
     if (!descripcion) {
       return res.status(400).json({ ok: false, message: "La descripción de la falla es obligatoria" });
@@ -526,6 +540,21 @@ export const createFalla = async (req, res) => {
         fecha: fecha ? new Date(fecha) : new Date(),
         responsable: responsable || null,
         costoReparacion: costoReparacion != null ? Number(costoReparacion) : null,
+        ...(repuestos && Array.isArray(repuestos) && repuestos.length > 0 ? {
+          repuestos: {
+            create: repuestos.map(r => ({
+              repuestoId: Number(r.repuestoId),
+              cantidad: Number(r.cantidad) || 1,
+            }))
+          }
+        } : {}),
+      },
+      include: {
+        repuestos: {
+          include: {
+            repuesto: true,
+          },
+        },
       },
     });
 
@@ -557,6 +586,13 @@ export const getFallas = async (req, res) => {
     const fallas = await prisma.registroFalla.findMany({
       where: { equipoId },
       orderBy: { fecha: 'desc' },
+      include: {
+        repuestos: {
+          include: {
+            repuesto: true,
+          },
+        },
+      },
     });
     return res.json({ ok: true, data: fallas });
   } catch (err) {

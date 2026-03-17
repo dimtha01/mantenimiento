@@ -44,13 +44,15 @@ export const RepuestosPage = () => {
     const [selectedEquipoId, setSelectedEquipoId] = useState(null);
     const [repuestos, setRepuestos] = useState([]);
     const [loading, setLoading] = useState(false);
-    const [searchQ, setSearchQ] = useState('');
+    const [searchQ, setSearchQ] = useState(''); // Búsqueda de repuestos
+    const [equipoSearch, setEquipoSearch] = useState(''); // Búsqueda de equipos
     const [tipoFilter, setTipoFilter] = useState('TODOS');
     const [showForm, setShowForm] = useState(false);
     const [form, setForm] = useState(FORM_EMPTY);
     const [editId, setEditId] = useState(null);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState(null);
+    const searchTimeoutRef = useRef(null);
 
     /* Load equipos list */
     useEffect(() => {
@@ -63,17 +65,74 @@ export const RepuestosPage = () => {
             });
     }, []);
 
-    /* Load repuestos for selected equipo */
-    const fetchRepuestos = useCallback(async () => {
+    // Filtrar equipos por búsqueda
+    const filteredEquipos = equipos.filter(eq => {
+        if (!equipoSearch.trim()) return true;
+        const search = equipoSearch.toLowerCase();
+        return (
+            (eq.codigo && eq.codigo.toLowerCase().includes(search)) ||
+            (eq.modelo && eq.modelo.toLowerCase().includes(search)) ||
+            (eq.marca?.nombre && eq.marca.nombre.toLowerCase().includes(search))
+        );
+    });
+
+    /* Load repuestos for selected equipo - con debounce para búsqueda */
+    useEffect(() => {
         if (!selectedEquipoId) return;
+
         setLoading(true);
-        const res = await fetch(`/api/repuestos?equipoId=${selectedEquipoId}`);
-        const json = await res.json();
-        setRepuestos(json.data ?? []);
-        setLoading(false);
+
+        // Limpiar timeout anterior si existe
+        if (searchTimeoutRef.current) {
+            clearTimeout(searchTimeoutRef.current);
+        }
+
+        // Crear nuevo timeout para debounce
+        searchTimeoutRef.current = setTimeout(async () => {
+            const params = new URLSearchParams({ equipoId: selectedEquipoId });
+            if (searchQ.trim()) params.set('q', searchQ);
+            if (tipoFilter !== 'TODOS') params.set('tipo', tipoFilter);
+
+            try {
+                const res = await fetch(`/api/repuestos?${params}`);
+                const json = await res.json();
+                setRepuestos(json.data ?? []);
+            } catch (err) {
+                console.error('Error cargando repuestos:', err);
+                setRepuestos([]);
+            } finally {
+                setLoading(false);
+            }
+        }, 300); // 300ms de debounce
+
+        return () => {
+            if (searchTimeoutRef.current) {
+                clearTimeout(searchTimeoutRef.current);
+            }
+        };
+    }, [selectedEquipoId, searchQ, tipoFilter]);
+
+    // Limpiar búsqueda cuando se cambia de equipo
+    useEffect(() => {
+        setSearchQ('');
+        setTipoFilter('TODOS');
+        setEquipoSearch(''); // Limpiar búsqueda de equipos también
     }, [selectedEquipoId]);
 
-    useEffect(() => { fetchRepuestos(); }, [fetchRepuestos]);
+    /* ── KPI per tipo (basado en todos los repuestos del equipo, no solo filtrados) ── */
+    const [allRepuestos, setAllRepuestos] = useState([]);
+    useEffect(() => {
+        // Cargar todos los repuestos sin filtros para KPIs
+        if (selectedEquipoId) {
+            fetch(`/api/repuestos?equipoId=${selectedEquipoId}`)
+                .then(r => r.json())
+                .then(json => setAllRepuestos(json.data ?? []))
+                .catch(err => console.error('Error cargando KPIs:', err));
+        }
+    }, [selectedEquipoId]);
+
+    const kpi = TIPOS.map(t => ({ tipo: t, count: allRepuestos.filter(r => r.tipo === t).length }));
+    const totalCosto = allRepuestos.reduce((s, r) => s + (Number(r.costo) || 0), 0);
 
     const resetForm = () => { setForm(FORM_EMPTY); setEditId(null); setShowForm(false); setError(null); };
 
@@ -95,7 +154,21 @@ export const RepuestosPage = () => {
             });
             const json = await res.json();
             if (!json.ok) throw new Error(json.message);
-            await fetchRepuestos();
+
+            // Recargar lista actual con filtros aplicados
+            const params = new URLSearchParams({ equipoId: selectedEquipoId });
+            if (searchQ.trim()) params.set('q', searchQ);
+            if (tipoFilter !== 'TODOS') params.set('tipo', tipoFilter);
+
+            const reloadRes = await fetch(`/api/repuestos?${params}`);
+            const reloadJson = await reloadRes.json();
+            setRepuestos(reloadJson.data ?? []);
+
+            // Recargar KPIs (sin filtros)
+            const kpiRes = await fetch(`/api/repuestos?equipoId=${selectedEquipoId}`);
+            const kpiJson = await kpiRes.json();
+            setAllRepuestos(kpiJson.data ?? []);
+
             resetForm();
         } catch (e) { setError(e.message); }
         finally { setSaving(false); }
@@ -104,18 +177,9 @@ export const RepuestosPage = () => {
     const handleDelete = async (id) => {
         await fetch(`/api/repuestos/${id}`, { method: 'DELETE' });
         setRepuestos(p => p.filter(r => r.id !== id));
+        // También actualizar allRepuestos para KPIs
+        setAllRepuestos(p => p.filter(r => r.id !== id));
     };
-
-    /* ── filtered list ── */
-    const filtered = repuestos.filter(r => {
-        const matchTipo = tipoFilter === 'TODOS' || r.tipo === tipoFilter;
-        const matchQ = !searchQ || r.nombre.toLowerCase().includes(searchQ.toLowerCase()) || (r.codigo ?? '').toLowerCase().includes(searchQ.toLowerCase());
-        return matchTipo && matchQ;
-    });
-
-    /* ── KPI per tipo ── */
-    const kpi = TIPOS.map(t => ({ tipo: t, count: repuestos.filter(r => r.tipo === t).length }));
-    const totalCosto = repuestos.reduce((s, r) => s + (Number(r.costo) || 0), 0);
 
     const equipo = equipos.find(e => e.id === selectedEquipoId);
 
@@ -138,29 +202,40 @@ export const RepuestosPage = () => {
                         <div className="p-3 border-b border-slate-100">
                             <input
                                 type="text"
-                                placeholder="Buscar equipo..."
+                                value={equipoSearch}
+                                onChange={(e) => setEquipoSearch(e.target.value)}
+                                placeholder="Buscar equipo por código, nombre o marca..."
                                 className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300 bg-slate-50"
                             />
                         </div>
                         <div className="flex-1 overflow-y-auto">
-                            {equipos.map(eq => {
-                                const repCount = repuestos.length > 0 && selectedEquipoId === eq.id ? repuestos.length : null;
-                                return (
-                                    <div
-                                        key={eq.id}
-                                        onClick={() => { setSelectedEquipoId(eq.id); setShowForm(false); resetForm(); }}
-                                        className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors border-l-2 ${selectedEquipoId === eq.id
-                                                ? 'bg-slate-50 border-slate-900 text-slate-900'
-                                                : 'border-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-700'
-                                            }`}
-                                    >
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-semibold truncate">{eq.modelo ?? eq.codigo}</p>
-                                            {eq.codigo && <p className="text-[10px] text-slate-400 font-mono truncate">{eq.codigo}</p>}
+                            {filteredEquipos.length === 0 ? (
+                                <div className="p-4 text-center text-slate-400 text-xs">
+                                    No se encontraron equipos
+                                </div>
+                            ) : (
+                                filteredEquipos.map(eq => {
+                                    const repCount = repuestos.length > 0 && selectedEquipoId === eq.id ? repuestos.length : null;
+                                    return (
+                                        <div
+                                            key={eq.id}
+                                            onClick={() => { setSelectedEquipoId(eq.id); setShowForm(false); resetForm(); }}
+                                            className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors border-l-2 ${selectedEquipoId === eq.id
+                                                    ? 'bg-slate-50 border-slate-900 text-slate-900'
+                                                    : 'border-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-700'
+                                                }`}
+                                        >
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-semibold truncate">{eq.modelo ?? eq.codigo}</p>
+                                                <div className="flex items-center gap-2">
+                                                    {eq.codigo && <p className="text-[10px] text-slate-400 font-mono truncate">{eq.codigo}</p>}
+                                                    {eq.marca?.nombre && <p className="text-[9px] text-slate-300 truncate">{eq.marca.nombre}</p>}
+                                                </div>
+                                            </div>
                                         </div>
-                                    </div>
-                                );
-                            })}
+                                    );
+                                })
+                            )}
                         </div>
                     </aside>
 
@@ -237,7 +312,9 @@ export const RepuestosPage = () => {
                         {/* Filters */}
                         <div className="flex items-center gap-3">
                             <input
-                                type="text" value={searchQ} onChange={e => setSearchQ(e.target.value)}
+                                type="text"
+                                value={searchQ}
+                                onChange={(e) => setSearchQ(e.target.value)}
                                 placeholder="Buscar repuesto..."
                                 className="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300 bg-white flex-1 max-w-xs"
                             />
@@ -253,16 +330,16 @@ export const RepuestosPage = () => {
                         {/* List */}
                         {loading ? (
                             <div className="py-12 text-center text-slate-400 text-sm">Cargando repuestos...</div>
-                        ) : filtered.length === 0 ? (
+                        ) : repuestos.length === 0 ? (
                             <div className="py-12 text-center">
                                 <div className="text-4xl mb-3 flex justify-center text-slate-300">
                                     <Package className="w-12 h-12" />
                                 </div>
-                                <p className="text-slate-400 text-sm">{repuestos.length === 0 ? 'Sin repuestos registrados para este equipo' : 'Sin resultados para los filtros aplicados'}</p>
+                                <p className="text-slate-400 text-sm">{allRepuestos.length === 0 ? 'Sin repuestos registrados para este equipo' : 'Sin resultados para los filtros aplicados'}</p>
                             </div>
                         ) : (
                             <div className="space-y-2">
-                                {filtered.map(r => (
+                                {repuestos.map(r => (
                                     <div key={r.id} className="flex items-center gap-4 px-4 py-3 bg-white border border-slate-200 rounded-xl hover:shadow-sm transition-shadow">
                                         <span className="text-xl shrink-0 flex justify-center text-slate-700">{React.cloneElement(TIPO_ICONS[r.tipo] || TIPO_ICONS.OTRO)}</span>
                                         <div className="flex-1 min-w-0">

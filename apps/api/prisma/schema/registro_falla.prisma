@@ -12,7 +12,8 @@ model RegistroFalla {
     responsable     String?  @db.VarChar(255)
     costoReparacion Decimal? @map("costo_reparacion") @db.Decimal(12, 2)
 
-    equipo Equipo @relation(fields: [equipoId], references: [id])
+    equipo    Equipo          @relation(fields: [equipoId], references: [id])
+    repuestos RepuestoFalla[]
     // Attachments se manejan polimórficamente sin relación explícita
 
     @@index([equipoId])

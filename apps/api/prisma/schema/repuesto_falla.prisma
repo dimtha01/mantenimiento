@@ -1,0 +1,13 @@
+model RepuestoFalla {
+    id        Int            @id @default(autoincrement())
+    repuestoId Int           @map("repuesto_id")
+    fallaId    Int           @map("falla_id")
+    cantidad  Int            @default(1)
+
+    repuesto Repuesto       @relation(fields: [repuestoId], references: [id])
+    falla    RegistroFalla  @relation(fields: [fallaId], references: [id], onDelete: Cascade)
+
+    @@index([repuestoId])
+    @@index([fallaId])
+    @@map("repuestos_fallas")
+}
