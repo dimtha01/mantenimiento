@@ -221,7 +221,7 @@ export const createEquipo = async (req, res) => {
     const marca_id = await resolveId('marca', marcaId, 'nombre', true);
     const tipo_id = await resolveId('tipoEquipo', tipoId, 'nombre', true);
     const ubic_id = await resolveId('ubicacionActivo', unidadNegocioId, 'nombre', true);
-    const prop_id = await resolveId('propietario', propietarioId, 'nombre', true);
+    const prop_id = await resolveId('propietario', propietarioId, 'nombre', false); // false = opcional, puede ser null
     const param_id = await resolveParametroId(parametroId);
 
     // Validar ficha técnica si viene
