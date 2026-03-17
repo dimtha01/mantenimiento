@@ -1,10 +1,10 @@
 import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
-/* ── GET /api/repuestos?equipoId=1&q=búsqueda&tipo=FILTRO ── */
+/* ── GET /api/repuestos?equipoId=1&q=búsqueda&tipoRepuestoId=1 ── */
 export const getRepuestos = async (req, res) => {
     try {
-        const { equipoId, q, tipo } = req.query;
+        const { equipoId, q, tipoRepuestoId } = req.query;
 
         if (!equipoId) {
             return res.status(400).json({ ok: false, message: "Se requiere el parámetro equipoId" });
@@ -22,15 +22,16 @@ export const getRepuestos = async (req, res) => {
             ];
         }
 
-        // Filtrar por tipo
-        if (tipo && tipo !== 'TODOS') {
-            where.tipo = tipo.toUpperCase();
+        // Filtrar por tipo de repuesto
+        if (tipoRepuestoId && tipoRepuestoId !== 'TODOS') {
+            where.tipoRepuestoId = Number(tipoRepuestoId);
         }
 
         const repuestos = await prisma.repuesto.findMany({
             where,
             orderBy: { nombre: "asc" },
             include: {
+                tipoRepuesto: true,
                 mantenimientos: {
                     include: {
                         mantenimiento: { select: { id: true, fechaServicio: true } },
@@ -49,22 +50,22 @@ export const getRepuestos = async (req, res) => {
 /* ── POST /api/repuestos ── */
 export const createRepuesto = async (req, res) => {
     try {
-        const { equipoId, nombre, tipo, codigo, costo } = req.body;
+        const { equipoId, nombre, tipoRepuestoId, codigo, costo } = req.body;
 
         if (!equipoId || !nombre) {
             return res.status(400).json({ ok: false, message: "Se requieren equipoId y nombre" });
         }
 
-        const TIPOS_VALIDOS = ["FILTRO", "CORREA", "ACEITE", "OTRO"];
-        const tipoFinal = tipo && TIPOS_VALIDOS.includes(tipo.toUpperCase()) ? tipo.toUpperCase() : "OTRO";
-
         const repuesto = await prisma.repuesto.create({
             data: {
                 equipoId: Number(equipoId),
                 nombre: nombre.trim(),
-                tipo: tipoFinal,
+                tipoRepuestoId: tipoRepuestoId ? Number(tipoRepuestoId) : null,
                 codigo: codigo?.trim() || null,
                 costo: costo != null ? Number(costo) : null,
+            },
+            include: {
+                tipoRepuesto: true,
             },
         });
 
@@ -72,7 +73,7 @@ export const createRepuesto = async (req, res) => {
     } catch (err) {
         console.error(err);
         if (err.code === "P2003") {
-            return res.status(400).json({ ok: false, message: "Equipo no encontrado" });
+            return res.status(400).json({ ok: false, message: "Equipo o tipo de repuesto no encontrado" });
         }
         return res.status(500).json({ ok: false, message: "Error creando repuesto" });
     }
@@ -81,18 +82,20 @@ export const createRepuesto = async (req, res) => {
 /* ── PUT /api/repuestos/:id ── */
 export const updateRepuesto = async (req, res) => {
     try {
-        const { nombre, tipo, codigo, costo } = req.body;
-        const TIPOS_VALIDOS = ["FILTRO", "CORREA", "ACEITE", "OTRO"];
+        const { nombre, tipoRepuestoId, codigo, costo } = req.body;
 
         const data = {};
         if (nombre) data.nombre = nombre.trim();
-        if (tipo && TIPOS_VALIDOS.includes(tipo.toUpperCase())) data.tipo = tipo.toUpperCase();
+        if (tipoRepuestoId !== undefined) data.tipoRepuestoId = tipoRepuestoId ? Number(tipoRepuestoId) : null;
         if (codigo !== undefined) data.codigo = codigo?.trim() || null;
         if (costo !== undefined) data.costo = costo != null ? Number(costo) : null;
 
         const repuesto = await prisma.repuesto.update({
             where: { id: Number(req.params.id) },
             data,
+            include: {
+                tipoRepuesto: true,
+            },
         });
 
         return res.json({ ok: true, data: repuesto });

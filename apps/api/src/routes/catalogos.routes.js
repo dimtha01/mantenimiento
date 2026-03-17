@@ -4,7 +4,8 @@ import {
     getTipos, createTipo, deleteTipo,
     getUbicaciones, createUbicacion, deleteUbicacion,
     getPropietarios, createPropietario, deletePropietario,
-    getParametros
+    getParametros,
+    getTiposRepuesto, createTipoRepuesto, deleteTipoRepuesto
 } from "../controllers/catalogos.controller.js";
 
 const router = Router();
@@ -26,5 +27,10 @@ router.post("/propietarios", createPropietario);
 router.delete("/propietarios/:id", deletePropietario);
 
 router.get("/parametros", getParametros);
+
+/* ── Tipos de Repuesto ───────────────────────────────────── */
+router.get("/tipos-repuestos", getTiposRepuesto);
+router.post("/tipos-repuestos", createTipoRepuesto);
+router.delete("/tipos-repuestos/:id", deleteTipoRepuesto);
 
 export default router;

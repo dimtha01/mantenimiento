@@ -16,7 +16,13 @@ const INCLUDE_FULL = {
     include: {
       tipo: true,
       repuestos: {
-        include: { repuesto: true }
+        include: {
+          repuesto: {
+            include: {
+              tipoRepuesto: true,
+            }
+          }
+        }
       }
     },
   },
@@ -45,7 +51,13 @@ const INCLUDE_LIST = {
     include: {
       tipo: true,
       repuestos: {
-        include: { repuesto: true }
+        include: {
+          repuesto: {
+            include: {
+              tipoRepuesto: true,
+            }
+          }
+        }
       }
     },
   },

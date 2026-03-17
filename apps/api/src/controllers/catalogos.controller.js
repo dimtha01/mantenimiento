@@ -85,3 +85,37 @@ export const deletePropietario = async (req, res) => {
         return res.status(400).json({ ok: false, message: 'No se puede eliminar: está en uso por equipos.' });
     }
 };
+
+/* ── Tipos de Repuesto ───────────────────────────────────── */
+export const getTiposRepuesto = async (_req, res) => {
+    const data = await prisma.tipoRepuesto.findMany({
+        where: { activo: true },
+        orderBy: { nombre: "asc" }
+    });
+    return res.json({ ok: true, data });
+};
+
+export const createTipoRepuesto = async (req, res) => {
+    try {
+        const data = await prisma.tipoRepuesto.create({
+            data: { nombre: req.body.nombre }
+        });
+        return res.json({ ok: true, data });
+    } catch (e) {
+        return res.status(500).json({ ok: false, message: e.message });
+    }
+};
+
+export const deleteTipoRepuesto = async (req, res) => {
+    try {
+        await prisma.tipoRepuesto.delete({
+            where: { id: Number(req.params.id) }
+        });
+        return res.json({ ok: true });
+    } catch (e) {
+        return res.status(400).json({
+            ok: false,
+            message: 'No se puede eliminar: está en uso por repuestos.'
+        });
+    }
+};

@@ -1,16 +1,18 @@
 model Repuesto {
-    id       Int      @id @default(autoincrement())
-    equipoId Int      @map("equipo_id")
-    nombre   String
-    tipo     String   @default("OTRO") // FILTRO | CORREA | ACEITE | OTRO
-    codigo   String?
-    costo    Decimal? @db.Decimal(12, 2)
+    id         Int      @id @default(autoincrement())
+    equipoId   Int      @map("equipo_id")
+    tipoRepuestoId Int  @map("tipo_repuesto_id")
+    nombre     String
+    codigo     String?
+    costo      Decimal? @db.Decimal(12, 2)
 
-    equipo         Equipo                  @relation(fields: [equipoId], references: [id], onDelete: Cascade)
+    equipo       Equipo         @relation(fields: [equipoId], references: [id], onDelete: Cascade)
+    tipoRepuesto TipoRepuesto   @relation(fields: [tipoRepuestoId], references: [id])
     mantenimientos RepuestoMantenimiento[]
     fallas         RepuestoFalla[]
 
     @@index([equipoId])
+    @@index([tipoRepuestoId])
     @@map("repuestos")
 }
 
