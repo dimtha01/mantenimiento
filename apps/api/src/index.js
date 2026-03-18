@@ -56,7 +56,7 @@ app.get('/api', (req, res) => {
 });
 
 // SPA Fallback: Cualquier ruta no-API debe devolver el index.html del cliente (React Router)
-app.get('*', (req, res, next) => {
+app.get(/.*/, (req, res, next) => {
   if (req.path.startsWith('/api')) {
     return next(); // Pasar al manejador 404 de la API si la ruta empieza con /api
   }
