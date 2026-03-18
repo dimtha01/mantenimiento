@@ -37,10 +37,6 @@ app.use('/api/alertas', alertasRoutes);
 app.use('/api/attachments', attachmentsRoutes);
 app.use('/api/repuestos', repuestosRoutes);
 
-// Manejo de rutas no encontradas (debe ir después de todas las rutas)
-app.use('/api', notFoundHandler);
-
-// Middleware de manejo global de errores (debe ir al final)
-app.use(errorHandler);
+// Manejo de rutas no encontradas y errores globales se movieron a index.js
 
 export default app;

@@ -6,6 +6,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import app from './app.js';
 import { iniciarCronAlertas } from './services/cronAlertas.js';
+import { notFoundHandler, errorHandler } from './middleware/errorHandler.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -54,19 +55,25 @@ app.get('/api', (req, res) => {
   res.json({ version: '1.0.0', buildDate: '2024-06-01T00:00:00Z' });
 });
 
-// 404 SIEMPRE al final (después de authRoutes y demás)
+// SPA Fallback: Cualquier ruta no-API debe devolver el index.html del cliente (React Router)
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api')) {
+    return next(); // Pasar al manejador 404 de la API si la ruta empieza con /api
+  }
+  res.sendFile(path.join(__dirname, '..', '..', 'client', 'dist', 'index.html'));
+});
+
+// Manejo de rutas de la API no encontradas
+app.use('/api', notFoundHandler);
+
+// 404 general para cualquier otra cosa que falle
 app.use((req, res) => {
-  logger.warn({ method: req.method, url: req.url }, 'Ruta no encontrada');
+  logger.warn({ method: req.method, url: req.url }, 'Ruta no encontrada general');
   res.status(404).json({ error: 'Ruta no encontrada' });
 });
 
-// Error handler al final
-app.use((err, req, res, next) => {
-  logger.error({ error: err.message, stack: err.stack }, 'Error en el servidor');
-  res.status(err.status || 500).json({
-    error: process.env.NODE_ENV === 'production' ? 'Error interno del servidor' : err.message
-  });
-});
+// Middleware de manejo global de errores
+app.use(errorHandler);
 
 const server = app.listen(PORT, '0.0.0.0', () => {
   logger.info({ port: PORT, host: '0.0.0.0' }, 'Servidor iniciado');
