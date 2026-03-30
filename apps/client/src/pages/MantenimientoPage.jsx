@@ -111,10 +111,10 @@ const RegistroForm = ({ equipoId, tipos, unidad, planes = [], initialPlanId, hor
       });
       const json = await res.json();
       if (!json.ok) throw new Error(json.message);
+      setSaving(false);
       onGuardado(json.data);
     } catch (e) {
       setErr(e.message);
-    } finally {
       setSaving(false);
     }
   };
