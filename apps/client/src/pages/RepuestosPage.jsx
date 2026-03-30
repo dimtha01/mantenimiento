@@ -489,31 +489,50 @@ export const RepuestosPage = () => {
                                 <p className="text-slate-400 text-sm">{allRepuestos.length === 0 ? 'Sin repuestos registrados para este equipo' : 'Sin resultados para los filtros aplicados'}</p>
                             </div>
                         ) : (
-                            <div className="space-y-2">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                 {repuestos.map(r => (
-                                    <div key={r.id} className="flex items-center gap-4 px-4 py-3 bg-white border border-slate-200 rounded-xl hover:shadow-sm transition-shadow">
-                                        <span className="text-xl shrink-0 flex justify-center text-slate-700">
-                                            <Package className="w-5 h-5" />
-                                        </span>
-                                        <div className="flex-1 min-w-0">
+                                    <div key={r.id} className="bg-white border border-slate-100 rounded-2xl p-5 hover:shadow-md hover:border-slate-200 transition-all group">
+                                        {/* Header con tipo */}
+                                        <div className="flex items-start justify-between mb-3">
                                             <div className="flex items-center gap-2">
-                                                <p className="text-sm font-semibold text-slate-800">{r.nombre}</p>
+                                                <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center text-slate-600">
+                                                    <Package className="w-4 h-4" />
+                                                </div>
                                                 {r.tipoRepuesto && (
-                                                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 bg-blue-100 text-blue-700">
+                                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
                                                         {r.tipoRepuesto.nombre}
                                                     </span>
                                                 )}
                                             </div>
-                                            {r.codigo && <p className="text-[10px] text-slate-400 font-mono">{r.codigo}</p>}
+                                            <div className="flex items-center gap-1">
+                                                <button onClick={() => handleEdit(r)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="Editar">
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                                                </button>
+                                                <DeleteBtn onConfirm={() => handleDelete(r.id)} />
+                                            </div>
                                         </div>
-                                        {r.costo != null && (
-                                            <span className="text-sm font-bold text-emerald-700 shrink-0">${Number(r.costo).toFixed(2)}</span>
+
+                                        {/* Nombre */}
+                                        <h3 className="text-sm font-bold text-slate-900 mb-1 leading-snug">{r.nombre}</h3>
+
+                                        {/* Código */}
+                                        {r.codigo && (
+                                            <p className="text-[11px] font-mono text-slate-400 mb-3 bg-slate-50 inline-block px-2 py-0.5 rounded">{r.codigo}</p>
                                         )}
-                                        <div className="flex items-center gap-1 shrink-0">
-                                            <button onClick={() => handleEdit(r)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="Editar">
-                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                                            </button>
-                                            <DeleteBtn onConfirm={() => handleDelete(r.id)} />
+
+                                        {/* Footer con costo */}
+                                        <div className="flex items-center justify-between pt-3 border-t border-slate-100 mt-auto">
+                                            {r.costo != null ? (
+                                                <div>
+                                                    <p className="text-[10px] text-slate-400 uppercase tracking-wider">Costo Unitario</p>
+                                                    <p className="text-base font-black text-emerald-600">${Number(r.costo).toFixed(2)}</p>
+                                                </div>
+                                            ) : (
+                                                <div>
+                                                    <p className="text-[10px] text-slate-400 uppercase tracking-wider">Costo</p>
+                                                    <p className="text-sm font-semibold text-slate-300">—</p>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 ))}

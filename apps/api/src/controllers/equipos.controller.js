@@ -176,9 +176,9 @@ export const getEquipoById = async (req, res) => {
 
 const toId = (v) => (v !== '' && v != null && !isNaN(Number(v)) ? Number(v) : undefined);
 
-// Obtener o crear un registro "Por Verificar" para FKs opcionales
+// Obtener o crear un registro "POR VALIDAR" para FKs opcionales
 const getPorVerificarId = async (modelName, columnName = 'nombre') => {
-  const label = 'Por Verificar';
+  const label = 'POR VALIDAR';
   const existing = await prisma[modelName].findFirst({
     where: { [columnName]: { equals: label, mode: 'insensitive' } },
   });
@@ -221,7 +221,7 @@ export const createEquipo = async (req, res) => {
     const marca_id = await resolveId('marca', marcaId, 'nombre', true);
     const tipo_id = await resolveId('tipoEquipo', tipoId, 'nombre', true);
     const ubic_id = await resolveId('ubicacionActivo', unidadNegocioId, 'nombre', true);
-    const prop_id = await resolveId('propietario', propietarioId, 'nombre', false); // false = opcional, puede ser null
+    const prop_id = await resolveId('propietario', propietarioId, 'nombre', true); // true = crea "Por Verificar" si viene vacío
     const param_id = await resolveParametroId(parametroId);
 
     // Validar ficha técnica si viene
@@ -247,8 +247,8 @@ export const createEquipo = async (req, res) => {
       fichaTecnica: fichaTecnicaData,
     };
 
-    // Solo codigo es realmente obligatorio ahora; pero necesitamos al menos los IDs de FK (se resolvieron con fallback)
-    if (!data.marcaId || !data.tipoId || !data.unidadNegocioId || !data.propietarioId || !data.parametroId) {
+    // Validar que los catálogos requeridos se hayan resuelto (propietario ya tiene fallback automático)
+    if (!data.marcaId || !data.tipoId || !data.unidadNegocioId || !data.parametroId) {
       return res.status(500).json({ ok: false, message: 'No se pudo resolver uno de los catálogos requeridos. Verifique que existan registros en la base de datos.' });
     }
 

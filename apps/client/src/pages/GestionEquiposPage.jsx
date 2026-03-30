@@ -254,8 +254,8 @@ export const GestionEquiposPage = () => {
         marcaId: Number(form.marcaId),
         tipoId: Number(form.tipoId),
         unidadNegocioId: Number(form.unidadNegocioId),
-        propietarioId: Number(form.propietarioId),
-        parametroId: Number(form.parametroId),
+        ...(form.propietarioId ? { propietarioId: Number(form.propietarioId) } : {}),
+        ...(form.parametroId ? { parametroId: Number(form.parametroId) } : {}),
         ...(form.horasMantenimientoPreventivo !== undefined && form.horasMantenimientoPreventivo !== '' ? { horasMantenimientoPreventivo: Number(form.horasMantenimientoPreventivo) } : {}),
       };
       const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
