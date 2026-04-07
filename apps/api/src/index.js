@@ -13,8 +13,6 @@ const __dirname = path.dirname(__filename);
 
 const PORT = process.env.PORT || 3000;
 
-app.use(express.static(path.join(__dirname, '..', '..', 'client', 'dist')));
-
 const logger = pino({
   transport: {
     target: 'pino-pretty',
@@ -28,13 +26,14 @@ const logger = pino({
   level: process.env.LOG_LEVEL || 'info'
 });
 
+// Logging
 if (process.env.NODE_ENV === 'production') {
   app.use(morgan('combined'));
 } else {
   app.use(morgan('dev'));
 }
 
-// Health check y info
+// Health check (antes de archivos estáticos)
 app.get('/api/health', (req, res) => {
   logger.debug('Health check solicitado');
   res.json({
@@ -50,11 +49,11 @@ app.get('/api', (req, res) => {
   res.json({ version: '1.0.0', buildDate: '2024-06-01T00:00:00Z' });
 });
 
-// SPA Fallback: Cualquier ruta no-API debe devolver el index.html del cliente (React Router)
-app.get(/.*/, (req, res, next) => {
-  if (req.path.startsWith('/api')) {
-    return next(); // Pasar al manejador 404 de la API si la ruta empieza con /api
-  }
+// Archivos estáticos del cliente (assets)
+app.use(express.static(path.join(__dirname, '..', '..', 'client', 'dist')));
+
+// SPA Fallback: para rutas que no son API y no son archivos estáticos
+app.get(/^\/(?!api).*/, (req, res) => {
   res.sendFile(path.join(__dirname, '..', '..', 'client', 'dist', 'index.html'));
 });
 
