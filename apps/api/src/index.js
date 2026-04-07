@@ -34,12 +34,7 @@ if (process.env.NODE_ENV === 'production') {
   app.use(morgan('dev'));
 }
 
-// Rutas base
-app.get('/', (req, res) => {
-  logger.info('Accediendo a ruta principal');
-  res.send('Hello, World!');
-});
-
+// Health check y info
 app.get('/api/health', (req, res) => {
   logger.debug('Health check solicitado');
   res.json({
