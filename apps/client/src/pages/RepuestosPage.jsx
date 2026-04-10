@@ -411,7 +411,7 @@ export const RepuestosPage = () => {
                                                 />
                                             </div>
                                             <div>
-                                                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Costo unitario ($)</label>
+                                                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Costo estimado unitario ($)</label>
                                                 <input
                                                     type="number"
                                                     min="0"
@@ -524,7 +524,7 @@ export const RepuestosPage = () => {
                                         <div className="flex items-center justify-between pt-3 border-t border-slate-100 mt-auto">
                                             {r.costo != null ? (
                                                 <div>
-                                                    <p className="text-[10px] text-slate-400 uppercase tracking-wider">Costo Unitario</p>
+                                                    <p className="text-[10px] text-slate-400 uppercase tracking-wider">Costo estimado unitario</p>
                                                     <p className="text-base font-black text-emerald-600">${Number(r.costo).toFixed(2)}</p>
                                                 </div>
                                             ) : (

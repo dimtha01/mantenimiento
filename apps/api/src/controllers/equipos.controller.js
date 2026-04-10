@@ -178,6 +178,9 @@ const toId = (v) => (v !== '' && v != null && !isNaN(Number(v)) ? Number(v) : un
 
 // Obtener o crear un registro "POR VALIDAR" para FKs opcionales
 const getPorVerificarId = async (modelName, columnName = 'nombre') => {
+  if (!prisma[modelName]) {
+    throw new Error(`El modelo '${modelName}' es undefined en Prisma. Revisa la escritura exacta del modelo.`);
+  }
   const label = 'POR VALIDAR';
   const existing = await prisma[modelName].findFirst({
     where: { [columnName]: { equals: label, mode: 'insensitive' } },
@@ -197,6 +200,9 @@ export const createEquipo = async (req, res) => {
 
     // Helper: resolver ID existente, crear nuevo string, o usar "Por Verificar"
     const resolveId = async (modelName, value, columnName = 'nombre', fallback = false) => {
+      if (!prisma[modelName]) {
+        throw new Error(`Error lógico: Prisma no tiene el modelo '${modelName}'. Verificá las llamadas a resolveId().`);
+      }
       if (!value && !fallback) return null;
       if (!value && fallback) return getPorVerificarId(modelName, columnName);
       if (!isNaN(Number(value))) return Number(value);
@@ -268,6 +274,9 @@ export const updateEquipo = async (req, res) => {
     const { codigo, modelo, serial, factura, marcaId, tipoId, unidadNegocioId, propietarioId, parametroId, horasMantenimientoPreventivo, estadoOperativo, fichaTecnica, horometroActual } = req.body;
 
     const resolveId = async (modelName, value, columnName = 'nombre') => {
+      if (!prisma[modelName]) {
+        throw new Error(`Error lógico: Prisma no tiene el modelo '${modelName}'. Verificá las llamadas a resolveId().`);
+      }
       if (!value) return undefined;
       if (!isNaN(Number(value))) return Number(value); // Es un ID existente
       // Es un string nuevo, crearlo dinámicamente
