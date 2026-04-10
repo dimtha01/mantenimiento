@@ -61,10 +61,25 @@ const RegistroForm = ({ equipoId, tipos, unidad, planes = [], initialPlanId, hor
   const [repuestosOptions, setRepuestosOptions] = useState([]);
   const [repuestosSeleccionados, setRepuestosSeleccionados] = useState([]);
 
-  useEffect(() => {
+  // ── Estado del mini-modal para crear nuevo repuesto ──
+  const [showNuevoRepuesto, setShowNuevoRepuesto] = useState(false);
+  const [tiposRepuesto, setTiposRepuesto] = useState([]);
+  const [nuevoRepForm, setNuevoRepForm] = useState({ nombre: '', tipoRepuestoId: '', codigo: '', costo: '' });
+  const [nuevoRepSaving, setNuevoRepSaving] = useState(false);
+  const [nuevoRepError, setNuevoRepError] = useState(null);
+
+  const fetchRepuestos = () => {
     fetch(`/api/repuestos?equipoId=${equipoId}`)
       .then(r => r.json())
       .then(json => { if (json.ok) setRepuestosOptions(json.data); })
+      .catch(console.error);
+  };
+
+  useEffect(() => {
+    fetchRepuestos();
+    fetch('/api/catalogos/tipos-repuestos')
+      .then(r => r.json())
+      .then(json => setTiposRepuesto(json.data ?? []))
       .catch(console.error);
   }, [equipoId]);
 
@@ -78,6 +93,55 @@ const RegistroForm = ({ equipoId, tipos, unidad, planes = [], initialPlanId, hor
 
   const updateRepCantidad = (id, cantidad) => {
     setRepuestosSeleccionados(p => p.map(x => x.id === id ? { ...x, cantidad: Number(cantidad) || 1 } : x));
+  };
+
+  // ── Guardar nuevo repuesto desde el formulario inline ──
+  const handleGuardarNuevoRep = async () => {
+    if (!nuevoRepForm.nombre.trim()) { setNuevoRepError('El nombre es obligatorio.'); return; }
+    setNuevoRepSaving(true);
+    setNuevoRepError(null);
+    try {
+      let tipoRepuestoIdFinal = null;
+      if (nuevoRepForm.tipoRepuestoId && nuevoRepForm.tipoRepuestoId.trim()) {
+        const valor = nuevoRepForm.tipoRepuestoId.trim();
+        if (/^\d+$/.test(valor)) {
+          tipoRepuestoIdFinal = Number(valor);
+        } else {
+          const tipoExistente = tiposRepuesto.find(t => t.nombre.toLowerCase() === valor.toLowerCase());
+          if (tipoExistente) {
+            tipoRepuestoIdFinal = tipoExistente.id;
+          } else {
+            const tipoRes = await fetch('/api/catalogos/tipos-repuestos', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ nombre: valor }),
+            });
+            const tipoJson = await tipoRes.json();
+            if (!tipoJson.ok) throw new Error(tipoJson.message || 'Error al crear tipo');
+            tipoRepuestoIdFinal = tipoJson.data.id;
+            setTiposRepuesto(p => [...p, tipoJson.data]);
+          }
+        }
+      }
+      const res = await fetch('/api/repuestos', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nombre: nuevoRepForm.nombre,
+          equipoId,
+          tipoRepuestoId: tipoRepuestoIdFinal,
+          codigo: nuevoRepForm.codigo || null,
+          costo: nuevoRepForm.costo !== '' ? Number(nuevoRepForm.costo) : null,
+        }),
+      });
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.message);
+      fetchRepuestos();
+      setNuevoRepForm({ nombre: '', tipoRepuestoId: '', codigo: '', costo: '' });
+      setShowNuevoRepuesto(false);
+    } catch (e) {
+      setNuevoRepError(e.message || 'Error al guardar repuesto');
+    } finally {
+      setNuevoRepSaving(false);
+    }
   };
 
   const watchTipoId = watch("tipoId");
@@ -177,10 +241,82 @@ const RegistroForm = ({ equipoId, tipos, unidad, planes = [], initialPlanId, hor
         <textarea {...register("observaciones")} rows={2} className={`${inputCls} resize-none`} placeholder="Detalles del servicio..." />
       </div>
 
-      {/* Selector Multi-Repuestos */}
-      {repuestosOptions.length > 0 && (
-        <div className="border border-slate-200 rounded-xl p-3 bg-white">
-          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Repuestos Utilizados</label>
+      {/* Selector Multi-Repuestos + Botón Agregar Repuesto */}
+      <div className="border border-slate-200 rounded-xl p-3 bg-white space-y-3">
+        <div className="flex items-center justify-between">
+          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider">Repuestos Utilizados</label>
+          <button
+            type="button"
+            onClick={() => { setShowNuevoRepuesto(v => !v); setNuevoRepError(null); }}
+            className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors"
+          >
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+            Agregar Repuesto
+          </button>
+        </div>
+
+        {/* Mini formulario de nuevo repuesto */}
+        {showNuevoRepuesto && (
+          <div className="border border-blue-200 rounded-xl p-3 bg-blue-50/40 space-y-2">
+            <p className="text-xs font-bold text-slate-700">Nuevo Repuesto para este equipo</p>
+            {nuevoRepError && <p className="text-[10px] text-red-600 bg-red-50 border border-red-200 rounded px-2 py-1">{nuevoRepError}</p>}
+            <input
+              value={nuevoRepForm.nombre}
+              onChange={e => setNuevoRepForm(p => ({ ...p, nombre: e.target.value }))}
+              placeholder="Nombre del repuesto *"
+              className={inputCls}
+              autoFocus
+            />
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <input
+                  value={nuevoRepForm.tipoRepuestoId}
+                  onChange={e => setNuevoRepForm(p => ({ ...p, tipoRepuestoId: e.target.value }))}
+                  placeholder="Tipo (ej: Filtro)"
+                  list="tipos-rep-mant-list"
+                  className={inputCls}
+                />
+                <datalist id="tipos-rep-mant-list">
+                  {tiposRepuesto.map(t => <option key={t.id} value={t.nombre}>{t.nombre}</option>)}
+                </datalist>
+              </div>
+              <input
+                value={nuevoRepForm.codigo}
+                onChange={e => setNuevoRepForm(p => ({ ...p, codigo: e.target.value }))}
+                placeholder="Código / Ref."
+                className={inputCls}
+              />
+            </div>
+            <input
+              type="number" min="0" step="0.01"
+              value={nuevoRepForm.costo}
+              onChange={e => setNuevoRepForm(p => ({ ...p, costo: e.target.value }))}
+              placeholder="Costo estimado unitario ($)"
+              className={inputCls}
+            />
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={handleGuardarNuevoRep}
+                disabled={nuevoRepSaving}
+                className="flex-1 py-1.5 bg-slate-900 text-white text-xs font-bold rounded-lg hover:bg-slate-800 disabled:opacity-60 transition-colors"
+              >
+                {nuevoRepSaving ? 'Guardando...' : 'Guardar Repuesto'}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setShowNuevoRepuesto(false); setNuevoRepError(null); setNuevoRepForm({ nombre: '', tipoRepuestoId: '', codigo: '', costo: '' }); }}
+                className="px-3 py-1.5 border border-slate-200 text-slate-500 text-xs font-semibold rounded-lg hover:bg-slate-50 transition-colors"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        )}
+
+        {repuestosOptions.length === 0 && !showNuevoRepuesto ? (
+          <p className="text-xs text-slate-400 py-2 text-center">Sin repuestos registrados. Usá "Agregar Repuesto" para crear uno.</p>
+        ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto pr-2">
             {repuestosOptions.map(rep => {
               const sel = repuestosSeleccionados.find(x => x.id === rep.id);
@@ -201,8 +337,8 @@ const RegistroForm = ({ equipoId, tipos, unidad, planes = [], initialPlanId, hor
               );
             })}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Selector de plan preventivo */}
       {esPreventivo && planes.length > 0 && (

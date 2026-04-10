@@ -6,12 +6,13 @@ export const getRepuestos = async (req, res) => {
     try {
         const { equipoId, q, tipoRepuestoId } = req.query;
 
-        if (!equipoId) {
-            return res.status(400).json({ ok: false, message: "Se requiere el parámetro equipoId" });
+        const equipoIdNum = Number(equipoId);
+        if (!equipoId || isNaN(equipoIdNum) || !Number.isInteger(equipoIdNum)) {
+            return res.status(400).json({ ok: false, message: "Se requiere el parámetro equipoId válido" });
         }
 
         // Construir condiciones de búsqueda
-        const where = { equipoId: Number(equipoId) };
+        const where = { equipoId: equipoIdNum };
 
         // Búsqueda por nombre o código
         if (q && q.trim()) {

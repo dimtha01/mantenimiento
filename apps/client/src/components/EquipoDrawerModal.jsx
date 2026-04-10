@@ -336,6 +336,16 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
   const [resolverFallaModal, setResolverFallaModal] = useState({ visible: false, fallaId: null, solucion: '' });
   const [repuestosOptions, setRepuestosOptions] = useState([]);
   const [repuestosSeleccionados, setRepuestosSeleccionados] = useState([]);
+  // ── Tab Repuestos: lista + CRUD ──
+  const [repuestosDrawer, setRepuestosDrawer] = useState([]);
+  const [repuestoSel, setRepuestoSel] = useState(null);
+  const [repuestosLoading, setRepuestosLoading] = useState(false);
+  const [repuestoForm, setRepuestoForm] = useState({ nombre: '', tipoRepuestoId: '', codigo: '', costo: '' });
+  const [repuestoEditId, setRepuestoEditId] = useState(null);
+  const [repuestoShowForm, setRepuestoShowForm] = useState(false);
+  const [repuestoSaving, setRepuestoSaving] = useState(false);
+  const [repuestoError, setRepuestoError] = useState(null);
+  const [tiposRepuestoDrawer, setTiposRepuestoDrawer] = useState([]);
 
   /* ── cargar catálogos ──────────────────────────────── */
   const fetchCatalogos = useCallback(async () => {
@@ -397,17 +407,26 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
         setActiveTab('general');
         setShowCertForm(false);
 
-        // Cargar repuestos del equipo para el selector de fallas
+        // Cargar repuestos del equipo
+        setRepuestosLoading(true);
         fetch(`/api/repuestos?equipoId=${equipo.id}`)
           .then(r => r.json())
           .then(json => {
-            setRepuestosOptions(json.data ?? []);
+            const data = json.data ?? [];
+            setRepuestosOptions(data);
+            setRepuestosDrawer(data);
             setRepuestosSeleccionados([]);
+            setRepuestoSel(null);
+            setRepuestoShowForm(false);
+            setRepuestoEditId(null);
           })
-          .catch(err => {
-            console.error('Error cargando repuestos:', err);
-            setRepuestosOptions([]);
-          });
+          .catch(err => { console.error('Error cargando repuestos:', err); setRepuestosDrawer([]); setRepuestosOptions([]); })
+          .finally(() => setRepuestosLoading(false));
+        // Cargar tipos de repuesto
+        fetch('/api/catalogos/tipos-repuestos')
+          .then(r => r.json())
+          .then(json => setTiposRepuestoDrawer(json.data ?? []))
+          .catch(console.error);
 
         prevEquipoId.current = equipo.id;
         setShowFallaForm(false);
@@ -624,6 +643,7 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
 
   const TABS = [
     { id: 'general', label: 'Info General', badge: 0 },
+    { id: 'repuestos', label: 'Repuestos', badge: 0 },
     { id: 'ficha', label: 'Sub Especificaciones', badge: 0 },
     { id: 'horas', label: 'Horas de Uso', badge: 0 },
     { id: 'fallas', label: 'Fallas', badge: fallasAbiertas.length },
@@ -829,6 +849,179 @@ export const EquipoDrawerModal = ({ equipo, onClose, onSave }) => {
 
         {/* ── CONTENIDO ── */}
         <div className="flex-1 overflow-y-auto">
+
+          {/* ════ Repuestos ════ */}
+          {activeTab === 'repuestos' && (() => {
+            const fetchRepuestosDrawer = () => {
+              setRepuestosLoading(true);
+              fetch(`/api/repuestos?equipoId=${equipo?.id}`)
+                .then(r => r.json())
+                .then(json => {
+                  const data = json.data ?? [];
+                  setRepuestosDrawer(data);
+                  setRepuestosOptions(data);
+                })
+                .catch(console.error)
+                .finally(() => setRepuestosLoading(false));
+            };
+            const handleRepSave = async () => {
+              if (!repuestoForm.nombre.trim()) { setRepuestoError('El nombre es obligatorio'); return; }
+              setRepuestoSaving(true); setRepuestoError(null);
+              try {
+                let tipoId = null;
+                if (repuestoForm.tipoRepuestoId) {
+                  const v = String(repuestoForm.tipoRepuestoId).trim();
+                  if (/^\d+$/.test(v)) {
+                    tipoId = Number(v);
+                  } else {
+                    const exist = tiposRepuestoDrawer.find(t => t.nombre.toLowerCase() === v.toLowerCase());
+                    if (exist) { tipoId = exist.id; }
+                    else {
+                      const r2 = await fetch('/api/catalogos/tipos-repuestos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nombre: v }) });
+                      const j2 = await r2.json();
+                      if (!j2.ok) throw new Error(j2.message);
+                      tipoId = j2.data.id;
+                      setTiposRepuestoDrawer(p => [...p, j2.data]);
+                    }
+                  }
+                }
+                const url = repuestoEditId ? `/api/repuestos/${repuestoEditId}` : '/api/repuestos';
+                const method = repuestoEditId ? 'PUT' : 'POST';
+                const body = { nombre: repuestoForm.nombre, tipoRepuestoId: tipoId, codigo: repuestoForm.codigo || null, costo: repuestoForm.costo !== '' ? Number(repuestoForm.costo) : null, ...(!repuestoEditId && { equipoId: equipo?.id }) };
+                const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                const json = await res.json();
+                if (!json.ok) throw new Error(json.message);
+                fetchRepuestosDrawer();
+                setRepuestoShowForm(false); setRepuestoEditId(null); setRepuestoForm({ nombre: '', tipoRepuestoId: '', codigo: '', costo: '' });
+                if (repuestoSel && repuestoSel.id === repuestoEditId) setRepuestoSel(null);
+              } catch (e) { setRepuestoError(e.message || 'Error al guardar'); }
+              finally { setRepuestoSaving(false); }
+            };
+            const handleRepDelete = async (id) => {
+              try {
+                await fetch(`/api/repuestos/${id}`, { method: 'DELETE' });
+                fetchRepuestosDrawer();
+                if (repuestoSel?.id === id) setRepuestoSel(null);
+              } catch (e) { console.error(e); }
+            };
+            const handleRepEdit = (r) => {
+              setRepuestoSel(r);
+              setRepuestoForm({ nombre: r.nombre, tipoRepuestoId: r.tipoRepuesto?.id ?? '', codigo: r.codigo || '', costo: r.costo ?? '' });
+              setRepuestoEditId(r.id);
+              setRepuestoShowForm(true);
+              setRepuestoError(null);
+            };
+            const inputClsR = 'w-full border border-slate-200 rounded-lg py-2 px-3 text-xs focus:outline-none focus:ring-2 focus:ring-slate-300 bg-white';
+            return (
+              <div className="flex overflow-hidden" style={{ height: 'calc(100vh - 220px)' }}>
+                {/* Lista izquierda */}
+                <div className="w-56 shrink-0 border-r border-slate-100 overflow-y-auto flex flex-col">
+                  <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between shrink-0">
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Repuestos</p>
+                    <span className="text-[10px] font-bold bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">{repuestosDrawer.length}</span>
+                  </div>
+                  {repuestosLoading ? (
+                    <div className="p-4 text-center text-xs text-slate-400">Cargando...</div>
+                  ) : repuestosDrawer.length === 0 ? (
+                    <div className="p-6 text-center">
+                      <svg className="w-8 h-8 text-slate-200 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
+                      <p className="text-xs text-slate-400">Sin repuestos</p>
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-slate-50 flex-1">
+                      {repuestosDrawer.map(r => (
+                        <button key={r.id} onClick={() => { setRepuestoSel(r); setRepuestoShowForm(false); setRepuestoEditId(null); }}
+                          className={`w-full text-left px-4 py-3 transition-colors ${ repuestoSel?.id === r.id ? 'bg-slate-900 text-white' : 'hover:bg-slate-50 text-slate-700' }`}
+                        >
+                          <p className={`text-xs font-semibold truncate ${repuestoSel?.id === r.id ? 'text-white' : 'text-slate-800'}`}>{r.nombre}</p>
+                          {r.tipoRepuesto && (
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold mt-0.5 inline-block ${ repuestoSel?.id === r.id ? 'bg-white/20 text-white' : 'bg-blue-100 text-blue-700' }`}>
+                              {r.tipoRepuesto.nombre}
+                            </span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {/* Botón agregar al pie de la lista */}
+                  <button
+                    onClick={() => { setRepuestoSel(null); setRepuestoForm({ nombre: '', tipoRepuestoId: '', codigo: '', costo: '' }); setRepuestoEditId(null); setRepuestoShowForm(true); setRepuestoError(null); }}
+                    className="shrink-0 m-3 py-2 border-2 border-dashed border-slate-200 hover:border-blue-400 hover:bg-blue-50 text-slate-400 hover:text-blue-600 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1.5"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                    Agregar
+                  </button>
+                </div>
+
+                {/* Panel derecho: detalle / formulario */}
+                <div className="flex-1 overflow-y-auto">
+                  {repuestoShowForm ? (
+                    <div className="px-5 py-4 space-y-3">
+                      <p className="text-sm font-bold text-slate-900">{repuestoEditId ? 'Editar Repuesto' : 'Nuevo Repuesto'}</p>
+                      {repuestoError && <p className="text-[10px] text-red-600 bg-red-50 border border-red-200 rounded px-2 py-1">{repuestoError}</p>}
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Nombre <span className="text-red-500">*</span></label>
+                        <input value={repuestoForm.nombre} onChange={e => setRepuestoForm(p => ({ ...p, nombre: e.target.value }))} placeholder="Ej: Filtro de aceite" className={inputClsR} autoFocus />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Tipo</label>
+                          <input value={repuestoForm.tipoRepuestoId} onChange={e => setRepuestoForm(p => ({ ...p, tipoRepuestoId: e.target.value }))} placeholder="Ej: Filtro" list="tipos-drawer-list" className={inputClsR} />
+                          <datalist id="tipos-drawer-list">{tiposRepuestoDrawer.map(t => <option key={t.id} value={t.nombre}>{t.nombre}</option>)}</datalist>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Código / Ref.</label>
+                          <input value={repuestoForm.codigo} onChange={e => setRepuestoForm(p => ({ ...p, codigo: e.target.value }))} placeholder="Ej: HF-101" className={inputClsR} />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Costo estimado unitario ($)</label>
+                        <input type="number" min="0" step="0.01" value={repuestoForm.costo} onChange={e => setRepuestoForm(p => ({ ...p, costo: e.target.value }))} placeholder="45.00" className={inputClsR} />
+                      </div>
+                      <div className="flex gap-2 pt-1">
+                        <button onClick={handleRepSave} disabled={repuestoSaving} className="flex-1 py-2 bg-slate-900 text-white text-xs font-bold rounded-lg hover:bg-slate-800 disabled:opacity-60 transition-colors">
+                          {repuestoSaving ? 'Guardando...' : repuestoEditId ? 'Actualizar' : 'Guardar'}
+                        </button>
+                        <button onClick={() => { setRepuestoShowForm(false); setRepuestoEditId(null); setRepuestoError(null); }} className="px-3 py-2 border border-slate-200 text-slate-500 text-xs font-semibold rounded-lg hover:bg-slate-50 transition-colors">Cancelar</button>
+                      </div>
+                    </div>
+                  ) : !repuestoSel ? (
+                    <div className="h-full flex flex-col items-center justify-center text-slate-300 px-4">
+                      <svg className="w-12 h-12 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
+                      <p className="text-sm text-center">Seleccioná un repuesto para ver sus detalles</p>
+                    </div>
+                  ) : (
+                    <div className="px-5 py-4 space-y-4">
+                      {/* Encabezado con acciones */}
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <h3 className="text-base font-bold text-slate-900">{repuestoSel.nombre}</h3>
+                          {repuestoSel.codigo && <p className="text-xs font-mono text-slate-400 bg-slate-50 inline-block px-2 py-0.5 rounded mt-0.5">{repuestoSel.codigo}</p>}
+                        </div>
+                        <div className="flex gap-1 shrink-0">
+                          <button onClick={() => handleRepEdit(repuestoSel)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                          </button>
+                          <button onClick={() => { if(window.confirm('¿Eliminar este repuesto?')) handleRepDelete(repuestoSel.id); }} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Eliminar">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                          </button>
+                        </div>
+                      </div>
+                      {repuestoSel.tipoRepuesto && (
+                        <span className="inline-block text-[11px] font-bold px-2.5 py-1 rounded-full bg-blue-100 text-blue-700">{repuestoSel.tipoRepuesto.nombre}</span>
+                      )}
+                      <div className="bg-slate-50 rounded-xl p-4">
+                        <p className="text-[10px] text-slate-400 uppercase tracking-wider mb-1">Costo estimado unitario</p>
+                        <p className={`text-2xl font-black ${repuestoSel.costo != null ? 'text-emerald-600' : 'text-slate-300'}`}>
+                          {repuestoSel.costo != null ? `$${Number(repuestoSel.costo).toFixed(2)}` : '—'}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* ════ Info General ════ */}
           {activeTab === 'general' && (

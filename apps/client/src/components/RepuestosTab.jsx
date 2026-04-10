@@ -170,7 +170,7 @@ export const RepuestosTab = ({ equipoId }) => {
                             <input value={form.codigo} onChange={e => setForm(p => ({ ...p, codigo: e.target.value }))} placeholder="Ej: HF-101" className={inputCls} />
                         </div>
                         <div className="col-span-2">
-                            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Costo Unitario ($)</label>
+                            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Costo estimado unitario ($)</label>
                             <input type="number" min="0" step="0.01" value={form.costo} onChange={e => setForm(p => ({ ...p, costo: e.target.value }))} placeholder="Ej: 45.00" className={inputCls} />
                         </div>
                     </div>
