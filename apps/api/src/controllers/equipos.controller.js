@@ -226,7 +226,7 @@ export const createEquipo = async (req, res) => {
 
     const marca_id = await resolveId('marca', marcaId, 'nombre', true);
     const tipo_id = await resolveId('tipoEquipo', tipoId, 'nombre', true);
-    const ubic_id = await resolveId('ubicacionActivo', unidadNegocioId, 'nombre', true);
+    const ubic_id = await resolveId('ubicacionEquipo', unidadNegocioId, 'nombre', true);
     const prop_id = await resolveId('propietario', propietarioId, 'nombre', true); // true = crea "Por Verificar" si viene vacío
     const param_id = await resolveParametroId(parametroId);
 
@@ -288,7 +288,7 @@ export const updateEquipo = async (req, res) => {
 
     const marca_id = await resolveId('marca', marcaId);
     const tipo_id = await resolveId('tipoEquipo', tipoId);
-    const ubic_id = await resolveId('ubicacionActivo', unidadNegocioId);
+    const ubic_id = await resolveId('ubicacionEquipo', unidadNegocioId);
     const prop_id = await resolveId('propietario', propietarioId);
     const param_id = toId(parametroId);
 
